@@ -85,8 +85,6 @@ if args.layer_type == "blend":
 
 logger.info(args)
 
-device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
-
 def compute_loss(args, model, batch_size=None):
     if batch_size is None: batch_size = args.batch_size
 
@@ -117,7 +115,7 @@ def get_regularization_loss(model, regularization_fns, regularization_coeffs):
 
 def train_moons_ffjord(model, optimizer, device, logger, iterations=8000):
     print('Using device', device)
-    
+
     for idx in trange(iterations, desc='Itr'):
         optimizer.zero_grad()
         if args.spectral_norm: spectral_norm_power_iteration(model, 1)
@@ -170,6 +168,7 @@ def train_moons_ffjord(model, optimizer, device, logger, iterations=8000):
 
 if __name__ == '__main__':
 
+    device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
     regularization_fns, regularization_coeffs = create_regularization_fns(args)
     model = build_model_tabular(args, 2, regularization_fns).to(device)
     if args.spectral_norm: add_spectral_norm(model)
@@ -184,3 +183,5 @@ if __name__ == '__main__':
     nfef_meter = utils.RunningAverageMeter(0.93)
     nfeb_meter = utils.RunningAverageMeter(0.93)
     tt_meter = utils.RunningAverageMeter(0.93)
+
+    train_moons_ffjord(model, optimizer, device, logger, iterations=8000)
