@@ -467,3 +467,677 @@ if __name__ == '__main__':
 
 Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
 Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+import argparse
+import os
+import time
+
+import torch
+import torch.optim as optim
+
+import lib.toy_data as toy_data
+import lib.utils as utils
+from lib.visualize_flow import visualize_transform
+import lib.layers.odefunc as odefunc
+
+from train_misc import standard_normal_logprob
+from train_misc import set_cnf_options, count_nfe, count_parameters, count_total_time
+from train_misc import add_spectral_norm, spectral_norm_power_iteration
+from train_misc import create_regularization_fns, get_regularization, append_regularization_to_log
+from train_misc import build_model_tabular
+
+from diagnostics.viz_toy import save_trajectory, trajectory_to_video
+
+SOLVERS = ["dopri5", "bdf", "rk4", "midpoint", 'adams', 'explicit_adams', 'fixed_adams']
+parser = argparse.ArgumentParser('Continuous Normalizing Flow')
+parser.add_argument(
+    '--data', choices=['swissroll', '8gaussians', 'pinwheel', 'circles', 'moons', '2spirals', 'checkerboard', 'rings'],
+    type=str, default='pinwheel'
+)
+parser.add_argument(
+    "--layer_type", type=str, default="concatsquash",
+    choices=["ignore", "concat", "concat_v2", "squash", "concatsquash", "concatcoord", "hyper", "blend"]
+)
+parser.add_argument('--dims', type=str, default='64-64-64')
+parser.add_argument("--num_blocks", type=int, default=1, help='Number of stacked CNFs.')
+parser.add_argument('--time_length', type=float, default=0.5)
+parser.add_argument('--train_T', type=eval, default=True)
+parser.add_argument("--divergence_fn", type=str, default="brute_force", choices=["brute_force", "approximate"])
+parser.add_argument("--nonlinearity", type=str, default="tanh", choices=odefunc.NONLINEARITIES)
+
+parser.add_argument('--solver', type=str, default='dopri5', choices=SOLVERS)
+parser.add_argument('--atol', type=float, default=1e-5)
+parser.add_argument('--rtol', type=float, default=1e-5)
+parser.add_argument("--step_size", type=float, default=None, help="Optional fixed step size.")
+
+parser.add_argument('--test_solver', type=str, default=None, choices=SOLVERS + [None])
+parser.add_argument('--test_atol', type=float, default=None)
+parser.add_argument('--test_rtol', type=float, default=None)
+
+parser.add_argument('--residual', type=eval, default=False, choices=[True, False])
+parser.add_argument('--rademacher', type=eval, default=False, choices=[True, False])
+parser.add_argument('--spectral_norm', type=eval, default=False, choices=[True, False])
+parser.add_argument('--batch_norm', type=eval, default=False, choices=[True, False])
+parser.add_argument('--bn_lag', type=float, default=0)
+
+parser.add_argument('--niters', type=int, default=10000)
+parser.add_argument('--batch_size', type=int, default=100)
+parser.add_argument('--test_batch_size', type=int, default=1000)
+parser.add_argument('--lr', type=float, default=1e-3)
+parser.add_argument('--weight_decay', type=float, default=1e-5)
+
+# Track quantities
+parser.add_argument('--l1int', type=float, default=None, help="int_t ||f||_1")
+parser.add_argument('--l2int', type=float, default=None, help="int_t ||f||_2")
+parser.add_argument('--dl2int', type=float, default=None, help="int_t ||f^T df/dt||_2")
+parser.add_argument('--JFrobint', type=float, default=None, help="int_t ||df/dx||_F")
+parser.add_argument('--JdiagFrobint', type=float, default=None, help="int_t ||df_i/dx_i||_F")
+parser.add_argument('--JoffdiagFrobint', type=float, default=None, help="int_t ||df/dx - df_i/dx_i||_F")
+
+parser.add_argument('--save', type=str, default='experiments/cnf')
+parser.add_argument('--viz_freq', type=int, default=100)
+parser.add_argument('--val_freq', type=int, default=100)
+parser.add_argument('--log_freq', type=int, default=10)
+parser.add_argument('--gpu', type=int, default=0)
+args = parser.parse_args()
+
+# logger
+utils.makedirs(args.save)
+logger = utils.get_logger(logpath=os.path.join(args.save, 'logs'), filepath=os.path.abspath(__file__))
+
+if args.layer_type == "blend":
+    logger.info("!! Setting time_length from None to 1.0 due to use of Blend layers.")
+    args.time_length = 1.0
+
+logger.info(args)
+
+def compute_loss(args, model, batch_size=None):
+    if batch_size is None: batch_size = args.batch_size
+
+    # load data
+    # x = toy_data.inf_train_gen(args.data, batch_size=batch_size)
+    x = sklearn.datasets.make_moons(n_samples=256, noise=.05)[0].astype(np.float32)
+    x = torch.from_numpy(x).type(torch.float32).to(device)
+    zero = torch.zeros(x.shape[0], 1).to(x)
+
+    # transform to z
+    z, delta_logp = model(x, zero)
+
+    # compute log q(z)
+    logpz = standard_normal_logprob(z).sum(1, keepdim=True)
+
+    logpx = logpz - delta_logp
+    loss = -torch.mean(logpx)
+    return loss
+
+def get_regularization_loss(model, regularization_fns, regularization_coeffs):
+    if len(regularization_coeffs) > 0:
+        reg_states = get_regularization(model, regularization_coeffs)
+        reg_loss = sum(
+            reg_state * coeff for reg_state, coeff in zip(reg_states, regularization_coeffs) if coeff != 0
+        )
+
+    return reg_loss
+
+def train_moons_ffjord(model, optimizer, device, logger, iterations=8000):
+    print('Using device', device)
+
+    for idx in trange(iterations, desc='Itr'):
+        optimizer.zero_grad()
+        if args.spectral_norm: spectral_norm_power_iteration(model, 1)
+
+        loss = compute_loss(args, model)
+        loss_meter.update(loss.item())
+
+        reg_loss = get_regularization_loss(model, regularization_fns, regularization_coeffs)
+
+        loss = loss + reg_loss
+
+        total_time = count_total_time(model)
+        nfe_forward = count_nfe(model)
+
+        loss.backward()
+        optimizer.step()
+
+        nfe_total = count_nfe(model)
+        nfe_backward = nfe_total - nfe_forward
+        nfef_meter.update(nfe_forward)
+        nfeb_meter.update(nfe_backward)
+        time_meter.update(time.time() - end)
+        tt_meter.update(total_time)
+
+        log_message = (
+            'Iter {:04d} | Time {:.4f}({:.4f}) | Loss {:.6f}({:.6f}) | NFE Forward {:.0f}({:.1f})'
+            ' | NFE Backward {:.0f}({:.1f}) | CNF Time {:.4f}({:.4f})'.format(
+                itr, time_meter.val, time_meter.avg, loss_meter.val, loss_meter.avg, nfef_meter.val, nfef_meter.avg,
+                nfeb_meter.val, nfeb_meter.avg, tt_meter.val, tt_meter.avg
+            )
+        )
+
+        if len(regularization_coeffs) > 0:
+            log_message = append_regularization_to_log(log_message, regularization_fns, reg_states)
+
+        logger.info(log_message)
+
+        if itr % args.val_freq == 0 or itr == args.niters:
+            with torch.no_grad():
+                model.eval()
+                test_loss = compute_loss(args, model, batch_size=args.test_batch_size)
+                test_nfe = count_nfe(model)
+                log_message = '[TEST] Iter {:04d} | Test Loss {:.6f} | NFE {:.0f}'.format(itr, test_loss, test_nfe)
+                logger.info(log_message)
+
+        end = time.time()
+
+    logger.info('Training has finished.')
+
+
+if __name__ == '__main__':
+
+    device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
+    regularization_fns, regularization_coeffs = create_regularization_fns(args)
+    model = build_model_tabular(args, 2, regularization_fns).to(device)
+    if args.spectral_norm: add_spectral_norm(model)
+    set_cnf_options(args, model)
+
+    logger.info(model)
+    logger.info("Number of trainable parameters: {}".format(count_parameters(model)))
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+
+    time_meter = utils.RunningAverageMeter(0.93)
+    loss_meter = utils.RunningAverageMeter(0.93)
+    nfef_meter = utils.RunningAverageMeter(0.93)
+    nfeb_meter = utils.RunningAverageMeter(0.93)
+    tt_meter = utils.RunningAverageMeter(0.93)
+
+    train_moons_ffjord(model, optimizer, device, logger, iterations=8000)
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=2, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=2, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=2, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=2, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Number of trainable parameters: 9225
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=2, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=2, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=2, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=2, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Number of trainable parameters: 9225
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=2, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=2, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=2, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=2, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Number of trainable parameters: 9225
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=2, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=2, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=2, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=2, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Number of trainable parameters: 9225
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=2, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=2, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=2, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=2, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Number of trainable parameters: 9225
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=2, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=2, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=2, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=2, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Number of trainable parameters: 9225
+Iter 0000 | Time 0.5285(0.5285) | Loss 2.529887(2.529887) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0000 | Test Loss 2.530318 | NFE 20 [*]
+Iter 0001 | Time 0.2413(0.5084) | Loss 2.531453(2.529997) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0002 | Time 0.2423(0.4898) | Loss 2.523504(2.529542) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0003 | Time 0.2425(0.4724) | Loss 2.522538(2.529052) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0004 | Time 0.2419(0.4563) | Loss 2.515671(2.528115) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0005 | Time 0.2453(0.4415) | Loss 2.512060(2.526991) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0006 | Time 0.2421(0.4276) | Loss 2.510421(2.525831) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0007 | Time 0.2447(0.4148) | Loss 2.506812(2.524500) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0008 | Time 0.2416(0.4027) | Loss 2.504354(2.523090) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0009 | Time 0.2423(0.3914) | Loss 2.500045(2.521477) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0010 | Time 0.2415(0.3809) | Loss 2.487307(2.519085) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0011 | Time 0.2430(0.3713) | Loss 2.485399(2.516727) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0012 | Time 0.2415(0.3622) | Loss 2.489984(2.514855) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0013 | Time 0.2417(0.3538) | Loss 2.479564(2.512384) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0014 | Time 0.2435(0.3460) | Loss 2.480891(2.510180) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0015 | Time 0.2419(0.3388) | Loss 2.467859(2.507217) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0016 | Time 0.2446(0.3322) | Loss 2.461203(2.503996) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0017 | Time 0.2444(0.3260) | Loss 2.465131(2.501276) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0018 | Time 0.2879(0.3233) | Loss 2.456325(2.498129) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0019 | Time 0.2415(0.3176) | Loss 2.447223(2.494566) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0020 | Time 0.2416(0.3123) | Loss 2.445011(2.491097) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0021 | Time 0.2419(0.3074) | Loss 2.436202(2.487254) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0022 | Time 0.2432(0.3029) | Loss 2.431407(2.483345) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0023 | Time 0.2412(0.2986) | Loss 2.421261(2.478999) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0024 | Time 0.2417(0.2946) | Loss 2.415736(2.474571) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0025 | Time 0.2410(0.2908) | Loss 2.412327(2.470214) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0026 | Time 0.2415(0.2874) | Loss 2.405075(2.465654) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0027 | Time 0.2436(0.2843) | Loss 2.394198(2.460652) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0028 | Time 0.2410(0.2813) | Loss 2.389838(2.455695) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0029 | Time 0.2409(0.2785) | Loss 2.374143(2.449986) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0030 | Time 0.2411(0.2758) | Loss 2.365455(2.444069) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0031 | Time 0.2410(0.2734) | Loss 2.353949(2.437761) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0032 | Time 0.2402(0.2711) | Loss 2.343343(2.431152) | NFE Forward 20(20.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+Iter 0033 | Time 0.3027(0.2733) | Loss 2.333784(2.424336) | NFE Forward 20(20.0) | NFE Backward 21(15.4) | CNF Time 0.5000(0.5000)
+Iter 0034 | Time 0.2994(0.2751) | Loss 2.328620(2.417636) | NFE Forward 20(20.0) | NFE Backward 21(15.8) | CNF Time 0.5000(0.5000)
+Iter 0035 | Time 0.2404(0.2727) | Loss 2.308554(2.410000) | NFE Forward 20(20.0) | NFE Backward 15(15.8) | CNF Time 0.5000(0.5000)
+Iter 0036 | Time 0.2420(0.2705) | Loss 2.299116(2.402238) | NFE Forward 20(20.0) | NFE Backward 15(15.7) | CNF Time 0.5000(0.5000)
+Iter 0037 | Time 0.3017(0.2727) | Loss 2.285582(2.394072) | NFE Forward 20(20.0) | NFE Backward 21(16.1) | CNF Time 0.5000(0.5000)
+Iter 0038 | Time 0.2413(0.2705) | Loss 2.273083(2.385603) | NFE Forward 20(20.0) | NFE Backward 15(16.0) | CNF Time 0.5000(0.5000)
+Iter 0039 | Time 0.3050(0.2729) | Loss 2.258676(2.376718) | NFE Forward 20(20.0) | NFE Backward 21(16.3) | CNF Time 0.5000(0.5000)
+Iter 0040 | Time 0.3017(0.2749) | Loss 2.246043(2.367571) | NFE Forward 20(20.0) | NFE Backward 21(16.7) | CNF Time 0.5000(0.5000)
+Iter 0041 | Time 0.3009(0.2768) | Loss 2.224101(2.357528) | NFE Forward 20(20.0) | NFE Backward 21(17.0) | CNF Time 0.5000(0.5000)
+Iter 0042 | Time 0.3042(0.2787) | Loss 2.216291(2.347641) | NFE Forward 20(20.0) | NFE Backward 21(17.3) | CNF Time 0.5000(0.5000)
+Iter 0043 | Time 0.3002(0.2802) | Loss 2.206149(2.337737) | NFE Forward 20(20.0) | NFE Backward 21(17.5) | CNF Time 0.5000(0.5000)
+Iter 0044 | Time 0.3005(0.2816) | Loss 2.191983(2.327534) | NFE Forward 20(20.0) | NFE Backward 21(17.8) | CNF Time 0.5000(0.5000)
+Iter 0045 | Time 0.3034(0.2831) | Loss 2.174825(2.316844) | NFE Forward 20(20.0) | NFE Backward 21(18.0) | CNF Time 0.5000(0.5000)
+Iter 0046 | Time 0.3017(0.2844) | Loss 2.157798(2.305711) | NFE Forward 20(20.0) | NFE Backward 21(18.2) | CNF Time 0.5000(0.5000)
+Iter 0047 | Time 0.3012(0.2856) | Loss 2.142013(2.294252) | NFE Forward 20(20.0) | NFE Backward 21(18.4) | CNF Time 0.5000(0.5000)
+Iter 0048 | Time 0.3031(0.2868) | Loss 2.134097(2.283041) | NFE Forward 20(20.0) | NFE Backward 21(18.6) | CNF Time 0.5000(0.5000)
+Iter 0049 | Time 0.3006(0.2878) | Loss 2.112658(2.271115) | NFE Forward 20(20.0) | NFE Backward 21(18.7) | CNF Time 0.5000(0.5000)
+Iter 0050 | Time 0.3011(0.2887) | Loss 2.094386(2.258744) | NFE Forward 20(20.0) | NFE Backward 21(18.9) | CNF Time 0.5000(0.5000)
+Iter 0051 | Time 0.3014(0.2896) | Loss 2.083880(2.246503) | NFE Forward 20(20.0) | NFE Backward 21(19.1) | CNF Time 0.5000(0.5000)
+Iter 0052 | Time 0.3008(0.2904) | Loss 2.064995(2.233798) | NFE Forward 20(20.0) | NFE Backward 21(19.2) | CNF Time 0.5000(0.5000)
+Iter 0053 | Time 0.3003(0.2911) | Loss 2.049453(2.220893) | NFE Forward 20(20.0) | NFE Backward 21(19.3) | CNF Time 0.5000(0.5000)
+Iter 0054 | Time 0.3003(0.2917) | Loss 2.054235(2.209227) | NFE Forward 20(20.0) | NFE Backward 21(19.4) | CNF Time 0.5000(0.5000)
+Iter 0055 | Time 0.3006(0.2924) | Loss 2.048623(2.197985) | NFE Forward 20(20.0) | NFE Backward 21(19.5) | CNF Time 0.5000(0.5000)
+Iter 0056 | Time 0.3030(0.2931) | Loss 2.026219(2.185961) | NFE Forward 20(20.0) | NFE Backward 21(19.6) | CNF Time 0.5000(0.5000)
+Iter 0057 | Time 0.3012(0.2937) | Loss 2.014956(2.173991) | NFE Forward 20(20.0) | NFE Backward 21(19.7) | CNF Time 0.5000(0.5000)
+Iter 0058 | Time 0.3004(0.2942) | Loss 2.015733(2.162913) | NFE Forward 20(20.0) | NFE Backward 21(19.8) | CNF Time 0.5000(0.5000)
+Iter 0059 | Time 0.3010(0.2946) | Loss 2.014957(2.152556) | NFE Forward 20(20.0) | NFE Backward 21(19.9) | CNF Time 0.5000(0.5000)
+Iter 0060 | Time 0.3000(0.2950) | Loss 2.009418(2.142536) | NFE Forward 20(20.0) | NFE Backward 21(20.0) | CNF Time 0.5000(0.5000)
+Iter 0061 | Time 0.3516(0.2990) | Loss 2.008560(2.133158) | NFE Forward 20(20.0) | NFE Backward 27(20.5) | CNF Time 0.5000(0.5000)
+Iter 0062 | Time 0.3521(0.3027) | Loss 2.013568(2.124787) | NFE Forward 20(20.0) | NFE Backward 27(20.9) | CNF Time 0.5000(0.5000)
+Iter 0063 | Time 0.3527(0.3062) | Loss 2.013913(2.117025) | NFE Forward 20(20.0) | NFE Backward 27(21.4) | CNF Time 0.5000(0.5000)
+Iter 0064 | Time 0.3511(0.3093) | Loss 2.001564(2.108943) | NFE Forward 20(20.0) | NFE Backward 27(21.8) | CNF Time 0.5000(0.5000)
+Iter 0065 | Time 0.3506(0.3122) | Loss 1.992359(2.100782) | NFE Forward 20(20.0) | NFE Backward 27(22.1) | CNF Time 0.5000(0.5000)
+Iter 0066 | Time 0.4043(0.3187) | Loss 1.985300(2.092699) | NFE Forward 20(20.0) | NFE Backward 33(22.9) | CNF Time 0.5000(0.5000)
+Iter 0067 | Time 0.3532(0.3211) | Loss 1.985532(2.085197) | NFE Forward 20(20.0) | NFE Backward 27(23.2) | CNF Time 0.5000(0.5000)
+Iter 0068 | Time 0.3531(0.3233) | Loss 1.991361(2.078628) | NFE Forward 20(20.0) | NFE Backward 27(23.4) | CNF Time 0.5000(0.5000)
+Iter 0069 | Time 0.3531(0.3254) | Loss 1.985844(2.072133) | NFE Forward 20(20.0) | NFE Backward 27(23.7) | CNF Time 0.5000(0.5000)
+Iter 0070 | Time 0.4056(0.3310) | Loss 1.976867(2.065465) | NFE Forward 20(20.0) | NFE Backward 33(24.3) | CNF Time 0.5000(0.5000)
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=2, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=2, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=2, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=2, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Number of trainable parameters: 9225
+Iter 0000 | Time 0.5008(0.5008) | Loss 2.469780(2.469780) | NFE Forward 14(14.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0000 | Test Loss 2.452884 | NFE 14 [*]
+Iter 0100 | Time 0.3052(0.3097) | Loss 1.917452(1.931272) | NFE Forward 20(20.6) | NFE Backward 21(21.4) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0100 | Test Loss 1.937900 | NFE 20 [*]
+Iter 0200 | Time 0.4678(0.4504) | Loss 1.795152(1.838358) | NFE Forward 32(27.0) | NFE Backward 33(33.3) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0200 | Test Loss 1.800927 | NFE 32 [*]
+Iter 0300 | Time 0.4999(0.4858) | Loss 1.487526(1.513265) | NFE Forward 38(33.6) | NFE Backward 33(33.4) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0300 | Test Loss 1.496343 | NFE 32 [*]
+Iter 0400 | Time 0.5867(0.5681) | Loss 1.084885(1.180337) | NFE Forward 44(39.6) | NFE Backward 39(39.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0400 | Test Loss 1.097025 | NFE 38 [*]
+Iter 0500 | Time 0.6756(0.6110) | Loss 0.975273(0.915310) | NFE Forward 50(44.6) | NFE Backward 45(40.9) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0500 | Test Loss 0.863249 | NFE 44 [*]
+Iter 0600 | Time 0.6746(0.6716) | Loss 0.757830(0.746493) | NFE Forward 50(49.1) | NFE Backward 45(45.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0600 | Test Loss 0.746526 | NFE 50 [*]
+Iter 0700 | Time 0.7304(0.6847) | Loss 0.576282(0.631269) | NFE Forward 62(50.5) | NFE Backward 45(45.5) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0700 | Test Loss 0.588902 | NFE 50 [*]
+Iter 0800 | Time 0.6748(0.6886) | Loss 0.553892(0.585663) | NFE Forward 50(47.3) | NFE Backward 45(47.9) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0800 | Test Loss 0.568080 | NFE 50 [*]
+Iter 0900 | Time 0.6997(0.6785) | Loss 0.482927(0.517353) | NFE Forward 44(43.2) | NFE Backward 51(48.7) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0900 | Test Loss 0.459123 | NFE 44 [*]
+Iter 1000 | Time 0.6782(0.6895) | Loss 0.490808(0.504459) | NFE Forward 38(42.2) | NFE Backward 51(50.1) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1000 | Test Loss 0.434010 | NFE 50 [*]
+Iter 1100 | Time 0.7034(0.6906) | Loss 0.497605(0.492266) | NFE Forward 44(44.5) | NFE Backward 51(49.2) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1100 | Test Loss 0.579045 | NFE 44 []
+Iter 1200 | Time 0.6748(0.7148) | Loss 0.469059(0.458977) | NFE Forward 50(48.1) | NFE Backward 45(50.1) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1200 | Test Loss 0.458606 | NFE 50 []
+Iter 1300 | Time 0.7300(0.7299) | Loss 0.517400(0.433563) | NFE Forward 50(49.9) | NFE Backward 51(50.8) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1300 | Test Loss 0.405325 | NFE 50 [*]
+Iter 1400 | Time 0.7384(0.7454) | Loss 0.514947(0.419845) | NFE Forward 50(50.5) | NFE Backward 51(51.9) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1400 | Test Loss 0.427990 | NFE 50 []
+Iter 1500 | Time 0.8451(0.8190) | Loss 0.399838(0.410558) | NFE Forward 50(58.5) | NFE Backward 63(56.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1500 | Test Loss 0.372821 | NFE 50 [*]
+Iter 1600 | Time 0.7852(0.8376) | Loss 0.379835(0.405688) | NFE Forward 62(63.0) | NFE Backward 51(55.6) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1600 | Test Loss 0.448948 | NFE 56 []
+Iter 1700 | Time 0.8420(0.8342) | Loss 0.368198(0.415085) | NFE Forward 62(58.3) | NFE Backward 57(57.8) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1700 | Test Loss 0.544957 | NFE 56 []
+Iter 1800 | Time 0.8174(0.8431) | Loss 0.387623(0.393520) | NFE Forward 68(60.5) | NFE Backward 51(57.6) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1800 | Test Loss 0.340418 | NFE 56 [*]
+Iter 1900 | Time 0.9304(0.8849) | Loss 0.447501(0.416336) | NFE Forward 68(65.4) | NFE Backward 63(59.8) | CNF Time 0.5000(0.5000)
+[TEST] Iter 1900 | Test Loss 0.389085 | NFE 68 []
+Iter 2000 | Time 0.8666(0.9104) | Loss 0.361523(0.384973) | NFE Forward 68(67.3) | NFE Backward 57(61.7) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2000 | Test Loss 0.391658 | NFE 62 []
+Iter 2100 | Time 0.9553(0.9442) | Loss 0.353809(0.377240) | NFE Forward 62(65.8) | NFE Backward 69(65.6) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2100 | Test Loss 0.407855 | NFE 68 []
+Iter 2200 | Time 0.9349(0.9778) | Loss 0.303890(0.359295) | NFE Forward 56(72.2) | NFE Backward 69(65.9) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2200 | Test Loss 0.404291 | NFE 80 []
+Iter 2300 | Time 1.0704(1.0169) | Loss 0.410951(0.379417) | NFE Forward 74(72.8) | NFE Backward 75(69.6) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2300 | Test Loss 0.332684 | NFE 68 [*]
+Iter 2400 | Time 1.1572(1.0627) | Loss 0.409081(0.363397) | NFE Forward 80(76.5) | NFE Backward 81(72.5) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2400 | Test Loss 0.318408 | NFE 74 [*]
+Iter 2500 | Time 1.0460(1.1000) | Loss 0.369229(0.353485) | NFE Forward 80(81.8) | NFE Backward 69(74.1) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2500 | Test Loss 0.347938 | NFE 86 []
+Iter 2600 | Time 1.2631(1.1353) | Loss 0.378309(0.369365) | NFE Forward 92(85.5) | NFE Backward 87(76.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2600 | Test Loss 0.341991 | NFE 86 []
+Iter 2700 | Time 1.2873(1.1489) | Loss 0.452595(0.355739) | NFE Forward 98(82.9) | NFE Backward 87(79.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2700 | Test Loss 0.297260 | NFE 74 [*]
+Iter 2800 | Time 1.1353(1.2127) | Loss 0.284135(0.345332) | NFE Forward 74(89.5) | NFE Backward 81(82.5) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2800 | Test Loss 0.246111 | NFE 92 [*]
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=100, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, gpu=0, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1000, test_rtol=None, test_solver=None, time_length=0.5, train_T=True, val_freq=100, viz_freq=100, weight_decay=1e-05)
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=2, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=64, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=64, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=64, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=64, out_features=2, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=2, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=2, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Using 4 GPUs.
+Number of trainable parameters: 9225
+Iter 2900 | Time 1.1841(1.2392) | Loss 0.391748(0.359735) | NFE Forward 86(91.2) | NFE Backward 81(84.5) | CNF Time 0.5000(0.5000)
+[TEST] Iter 2900 | Test Loss 0.328515 | NFE 86 []
+Iter 0000 | Time 13.3330(13.3330) | Loss 2.472296(2.472296) | NFE Forward 14(14.0) | NFE Backward 15(15.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 0000 | Test Loss 2.468206 | NFE 14 [*]
+Iter 0100 | Time 0.5793(0.5768) | Loss 1.953905(1.963094) | NFE Forward 20(20.0) | NFE Backward 27(24.0) | CNF Time 0.3718(0.3875)
+[TEST] Iter 0100 | Test Loss 1.938514 | NFE 20 [*]
+Iter 3000 | Time 1.1841(1.2475) | Loss 0.309775(0.343123) | NFE Forward 86(91.0) | NFE Backward 81(85.0) | CNF Time 0.5000(0.5000)
+[TEST] Iter 3000 | Test Loss 0.286439 | NFE 86 []
+711232) | NFE Forward 32(27.5) | NFE Backward 27(28.0) | CNF Time 0.2700(0.2823)
+[TEST] Iter 0200 | Test Loss 1.678164 | NFE 32 [*]
+Iter 0300 | Time 0.8276(0.8286) | Loss 1.647888(1.658862) | NFE Forward 32(33.3) | NFE Backward 33(32.2) | CNF Time 0.1911(0.2006)
+[TEST] Iter 0300 | Test Loss 1.659026 | NFE 32 [*]
+Iter 3100 | Time 1.3514(1.2584) | Loss 0.334107(0.339101) | NFE Forward 110(90.4) | NFE Backward 87(86.6) | CNF Time 0.5000(0.5000)
+[TEST] Iter 3100 | Test Loss 0.340733 | NFE 86 []
+Iter 0400 | Time 0.8470(0.7451) | Loss 1.557732(1.546442) | NFE Forward 26(29.5) | NFE Backward 27(27.8) | CNF Time 0.1315(0.1386)
+[TEST] Iter 0400 | Test Loss 1.516204 | NFE 26 [*]
+Iter 0500 | Time 0.9707(0.9004) | Loss 1.462154(1.461540) | NFE Forward 32(34.0) | NFE Backward 45(37.1) | CNF Time 0.0877(0.0929)
+[TEST] Iter 0500 | Test Loss 1.464257 | NFE 32 [*]
+Iter 3200 | Time 1.2994(1.3073) | Loss 0.349894(0.336291) | NFE Forward 98(95.0) | NFE Backward 87(89.4) | CNF Time 0.5000(0.5000)
+[TEST] Iter 3200 | Test Loss 0.328823 | NFE 92 []

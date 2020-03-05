@@ -5,9 +5,17 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 import time
+import numpy as np
+import pandas as pd
 
 import torch
+import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
+import sklearn.datasets
+
+from tqdm import tqdm, trange, tqdm_notebook
+
 
 import lib.toy_data as toy_data
 import lib.utils as utils
@@ -116,16 +124,20 @@ def get_regularization_loss(model, regularization_fns, regularization_coeffs):
 def train_moons_ffjord(model, optimizer, device, logger, iterations=8000):
     print('Using device', device)
 
-    for idx in trange(iterations, desc='Itr'):
+    end = time.time()
+    best_loss = float('inf')
+    model.train()
+
+    for itr in trange(iterations, desc='Itr'):
         optimizer.zero_grad()
         if args.spectral_norm: spectral_norm_power_iteration(model, 1)
 
         loss = compute_loss(args, model)
         loss_meter.update(loss.item())
 
-        reg_loss = get_regularization_loss(model, regularization_fns, regularization_coeffs)
-
-        loss = loss + reg_loss
+        if len(regularization_coeffs) > 0:
+            reg_loss = get_regularization_loss(model, regularization_fns, regularization_coeffs)
+            loss = loss + reg_loss
 
         total_time = count_total_time(model)
         nfe_forward = count_nfe(model)
@@ -151,15 +163,24 @@ def train_moons_ffjord(model, optimizer, device, logger, iterations=8000):
         if len(regularization_coeffs) > 0:
             log_message = append_regularization_to_log(log_message, regularization_fns, reg_states)
 
-        logger.info(log_message)
 
         if itr % args.val_freq == 0 or itr == args.niters:
+            logger.info(log_message)
+            improved = '[]'
+
             with torch.no_grad():
                 model.eval()
                 test_loss = compute_loss(args, model, batch_size=args.test_batch_size)
                 test_nfe = count_nfe(model)
-                log_message = '[TEST] Iter {:04d} | Test Loss {:.6f} | NFE {:.0f}'.format(itr, test_loss, test_nfe)
+
+                if test_loss.item() < best_loss:
+                    best_loss = test_loss.item()
+                    improved = '[*]'
+
+                log_message = '[TEST] Iter {:04d} | Test Loss {:.6f} | NFE {:.0f} {}'.format(itr, test_loss, test_nfe, improved)
                 logger.info(log_message)
+
+            model.train()
 
         end = time.time()
 
@@ -175,7 +196,15 @@ if __name__ == '__main__':
     set_cnf_options(args, model)
 
     logger.info(model)
+    n_gpus = torch.cuda.device_count()
+    logger.info('Using {} GPUs.'.format(n_gpus))
     logger.info("Number of trainable parameters: {}".format(count_parameters(model)))
+    if n_gpus > 1:
+        print('Using {} GPUs.'.format(n_gpus))
+        model = nn.DataParallel(model)
+        args.multigpu = True
+    else:
+        args.multigpu = False
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
     time_meter = utils.RunningAverageMeter(0.93)
