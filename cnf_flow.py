@@ -16,7 +16,7 @@ import sklearn.datasets
 
 from tqdm import tqdm, trange, tqdm_notebook
 
-
+# ffjord lib
 import lib.toy_data as toy_data
 import lib.utils as utils
 from lib.visualize_flow import visualize_transform
@@ -26,14 +26,18 @@ from train_misc import standard_normal_logprob
 from train_misc import set_cnf_options, count_nfe, count_parameters, count_total_time
 from train_misc import add_spectral_norm, spectral_norm_power_iteration
 from train_misc import create_regularization_fns, get_regularization, append_regularization_to_log
-from train_misc import build_model_tabular
+from train_misc import build_model_tabular, override_divergence_fn
 
 from diagnostics.viz_toy import save_trajectory, trajectory_to_video
+
+# vae lib
+from models import losses, network, vae
+from utils import helpers, datasets, math, distributions
 
 SOLVERS = ["dopri5", "bdf", "rk4", "midpoint", 'adams', 'explicit_adams', 'fixed_adams']
 parser = argparse.ArgumentParser('Continuous Normalizing Flow')
 parser.add_argument(
-    '--data', choices=['swissroll', '8gaussians', 'pinwheel', 'circles', 'moons', '2spirals', 'checkerboard', 'rings'],
+    '--data', choices=['swissroll', '8gaussians', 'pinwheel', 'circles', 'moons', '2spirals', 'checkerboard', 'rings', 'hep'],
     type=str, default='pinwheel'
 )
 parser.add_argument(
@@ -41,8 +45,10 @@ parser.add_argument(
     choices=["ignore", "concat", "concat_v2", "squash", "concatsquash", "concatcoord", "hyper", "blend"]
 )
 parser.add_argument('--dims', type=str, default='64-64-64')
+parser.add_argument('--hdim_factor', type=int, default=10)
+parser.add_argument('--nhidden', type=int, default=1)
 parser.add_argument("--num_blocks", type=int, default=1, help='Number of stacked CNFs.')
-parser.add_argument('--time_length', type=float, default=0.5)
+parser.add_argument('--time_length', type=float, default=1.0)
 parser.add_argument('--train_T', type=eval, default=True)
 parser.add_argument("--divergence_fn", type=str, default="brute_force", choices=["brute_force", "approximate"])
 parser.add_argument("--nonlinearity", type=str, default="tanh", choices=odefunc.NONLINEARITIES)
@@ -62,9 +68,10 @@ parser.add_argument('--spectral_norm', type=eval, default=False, choices=[True, 
 parser.add_argument('--batch_norm', type=eval, default=False, choices=[True, False])
 parser.add_argument('--bn_lag', type=float, default=0)
 
+parser.add_argument('--early_stopping', type=int, default=16)
 parser.add_argument('--niters', type=int, default=10000)
-parser.add_argument('--batch_size', type=int, default=100)
-parser.add_argument('--test_batch_size', type=int, default=1000)
+parser.add_argument('--batch_size', type=int, default=1024)
+parser.add_argument('--test_batch_size', type=int, default=1024)
 parser.add_argument('--lr', type=float, default=1e-3)
 parser.add_argument('--weight_decay', type=float, default=1e-5)
 
@@ -76,9 +83,11 @@ parser.add_argument('--JFrobint', type=float, default=None, help="int_t ||df/dx|
 parser.add_argument('--JdiagFrobint', type=float, default=None, help="int_t ||df_i/dx_i||_F")
 parser.add_argument('--JoffdiagFrobint', type=float, default=None, help="int_t ||df/dx - df_i/dx_i||_F")
 
+parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--save', type=str, default='experiments/cnf')
+parser.add_argument('--evaluate', action='store_true')
 parser.add_argument('--viz_freq', type=int, default=100)
-parser.add_argument('--val_freq', type=int, default=100)
+parser.add_argument('--val_freq', type=int, default=200)
 parser.add_argument('--log_freq', type=int, default=10)
 parser.add_argument('--gpu', type=int, default=0)
 args = parser.parse_args()
@@ -90,6 +99,7 @@ logger = utils.get_logger(logpath=os.path.join(args.save, 'logs'), filepath=os.p
 if args.layer_type == "blend":
     logger.info("!! Setting time_length from None to 1.0 due to use of Blend layers.")
     args.time_length = 1.0
+    args.train_T = False
 
 logger.info(args)
 
@@ -106,8 +116,8 @@ def compute_loss(args, model, batch_size=None):
     z, delta_logp = model(x, zero)
 
     # compute log q(z)
-    logpz = standard_normal_logprob(z).sum(1, keepdim=True)
-
+    # logpz = standard_normal_logprob(z).sum(1, keepdim=True)
+    logpz = standard_normal_logprob(z).view(z.shape[0], -1).sum(1, keepdim=True)  # logp(z)
     logpx = logpz - delta_logp
     loss = -torch.mean(logpx)
     return loss
@@ -187,9 +197,39 @@ def train_moons_ffjord(model, optimizer, device, logger, iterations=8000):
     logger.info('Training has finished.')
 
 
+def get_data(args, logger):
+    test_loader = datasets.get_dataloaders(args.dataset,
+                               batch_size=args.batch_size,
+                               logger=logger,
+                               train=False,
+                               sampling_bias=args.sampling_bias,
+                               shuffle=args.shuffle)
+
+    # all_loader = datasets.get_dataloaders(args.dataset,
+    #                             batch_size=args.batch_size,
+    #                             logger=logger,
+    #                             metrics=True,
+    #                             evaluate=True,
+    #                             train=False,
+    #                             sampling_bias=args.sampling_bias,
+    #                             shuffle=args.shuffle)
+
+
+    train_loader = datasets.get_dataloaders(args.dataset,
+                                batch_size=args.batch_size,
+                                logger=logger,
+                                train=True,
+                                sampling_bias=args.sampling_bias,
+                                shuffle=args.shuffle)
+
+    return train_loader, test_loader
+
+args.n_data = len(train_loader.dataset)
+
 if __name__ == '__main__':
 
     device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
+    cvt = lambda x: x.type(torch.float32).to(device, non_blocking=True)
     regularization_fns, regularization_coeffs = create_regularization_fns(args)
     model = build_model_tabular(args, 2, regularization_fns).to(device)
     if args.spectral_norm: add_spectral_norm(model)

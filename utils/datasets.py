@@ -1,0 +1,590 @@
+"""
+Authors:
+@YannDubs 2019
+
+Modifications:
+Justin Tan 2019
+"""
+
+
+import subprocess
+import os
+import abc
+import hashlib
+import zipfile
+import glob
+import logging
+import tarfile
+from skimage.io import imread
+from scipy.stats import norm
+from PIL import Image
+from tqdm import tqdm
+import numpy as np
+
+import torch
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms, datasets
+
+DIR = os.path.abspath(os.path.dirname(__file__))
+COLOUR_BLACK = 0
+COLOUR_WHITE = 1
+DATASETS_DICT = {"mnist": "MNIST",
+                 "fashion": "FashionMNIST",
+                 "dsprites": "DSprites",
+                 "dsprites_scream": "ScreamDSprites",
+                 "celeba": "CelebA",
+                 "chairs": "Chairs"}
+DATASETS = list(DATASETS_DICT.keys())
+SCREAM_PATH = '/home/jtan/gpu/jtan/github/disentangled/data/scream/scream.jpg'
+
+
+def get_dataset(dataset):
+    """Return the correct dataset."""
+    dataset = dataset.lower()
+    try:
+        # eval because stores name as string in order to put it at top of file
+        return eval(DATASETS_DICT[dataset])
+    except KeyError:
+        raise ValueError("Unknown dataset: {}".format(dataset))
+
+
+def get_img_size(dataset):
+    """Return the correct image size."""
+    return get_dataset(dataset).img_size
+
+
+def get_background(dataset):
+    """Return the image background color."""
+    return get_dataset(dataset).background_color
+
+
+def get_dataloaders(dataset, train=True, root=None, shuffle=True, pin_memory=True,
+                    batch_size=128, biased_version=False, logger=logging.getLogger(__name__), metrics=False, **kwargs):
+    """A generic data loader
+
+    Parameters
+    ----------
+    dataset : {"mnist", "fashion", "dsprites", "dsprites_scream", "celeba", "chairs"}
+        Name of the dataset to load
+
+    root : str
+        Path to the dataset root. If `None` uses the default one.
+
+    kwargs :
+        Additional arguments to `DataLoader`. Default values are modified.
+    """
+    pin_memory = pin_memory and torch.cuda.is_available  # only pin if GPU available
+    Dataset = get_dataset(dataset)
+
+    if root is None:
+        dataset = Dataset(logger=logger, train=train, biased_version=biased_version, metrics=metrics)
+    else:
+        dataset = Dataset(root=root, logger=logger, train=train, biased_version=biased_version, metrics=metrics)
+
+    return DataLoader(dataset,
+                      batch_size=batch_size,
+                      shuffle=shuffle,
+                      pin_memory=pin_memory,
+                      **kwargs)
+
+
+class DisentangledDataset(Dataset, abc.ABC):
+    """Base Class for disentangled VAE datasets.
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    transforms_list : list
+        List of `torch.vision.transforms` to apply to the data when loading it.
+    """
+
+    def __init__(self, root, transforms_list=[], logger=logging.getLogger(__name__), **kwargs):
+        self.root = root
+        self.train_data = os.path.join(root, type(self).files["train"])
+        self.transforms = transforms.Compose(transforms_list)
+        self.logger = logger
+
+        if not os.path.isdir(root):
+            self.logger.info("Downloading {} ...".format(str(type(self))))
+            self.download()
+            self.logger.info("Finished Downloading.")
+
+    def __len__(self):
+        return len(self.imgs)
+
+    def __ndim__(self):
+        return self.imgs.size(1)
+
+    @abc.abstractmethod
+    def __getitem__(self, idx):
+        """Get the image of `idx`.
+
+        Return
+        ------
+        sample : torch.Tensor
+            Tensor in [0.,1.] of shape `img_size`.
+        """
+        pass
+
+    @abc.abstractmethod
+    def download(self):
+        """Download the dataset. """
+        pass
+
+
+class DSprites(DisentangledDataset):
+    """DSprites Dataset from [1].
+
+    Disentanglement test Sprites dataset.Procedurally generated 2D shapes, from 6
+    disentangled latent factors. This dataset uses 6 latents, controlling the color,
+    shape, scale, rotation and position of a sprite. All possible variations of
+    the latents are present. Ordering along dimension 1 is fixed and can be mapped
+    back to the exact latent values that generated that image. Pixel outputs are
+    different. No noise added.
+
+    The ground-truth factors of variation are (in the default setting):
+        0 - shape (3 different values)
+        1 - scale (6 different values)
+        2 - orientation (40 different values)
+        3 - position x (32 different values)
+        4 - position y (32 different values)
+
+    Notes
+    -----
+    - Link : https://github.com/deepmind/dsprites-dataset/
+    - hard coded metadata because issue with python 3 loading of python 2
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    References
+    ----------
+    [1] Higgins, I., Matthey, L., Pal, A., Burgess, C., Glorot, X., Botvinick,
+        M., ... & Lerchner, A. (2017). beta-vae: Learning basic visual concepts
+        with a constrained variational framework. In International Conference
+        on Learning Representations.
+
+    """
+    files = {"all": "dsprites.npz", "train": "dsprites_train.npz", "test": "dsprites_test.npz"}
+    urls = {"train": "https://github.com/deepmind/dsprites-dataset/blob/master/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz?raw=true"}
+    lat_names = ('shape', 'scale', 'orientation', 'posX', 'posY')
+    lat_sizes = np.array([3, 6, 40, 32, 32])
+    img_size = (1, 64, 64)
+    background_color = COLOUR_BLACK
+    lat_values = {'posX': np.array([0., 0.03225806, 0.06451613, 0.09677419, 0.12903226,
+                                    0.16129032, 0.19354839, 0.22580645, 0.25806452,
+                                    0.29032258, 0.32258065, 0.35483871, 0.38709677,
+                                    0.41935484, 0.4516129, 0.48387097, 0.51612903,
+                                    0.5483871, 0.58064516, 0.61290323, 0.64516129,
+                                    0.67741935, 0.70967742, 0.74193548, 0.77419355,
+                                    0.80645161, 0.83870968, 0.87096774, 0.90322581,
+                                    0.93548387, 0.96774194, 1.]),
+                  'posY': np.array([0., 0.03225806, 0.06451613, 0.09677419, 0.12903226,
+                                    0.16129032, 0.19354839, 0.22580645, 0.25806452,
+                                    0.29032258, 0.32258065, 0.35483871, 0.38709677,
+                                    0.41935484, 0.4516129, 0.48387097, 0.51612903,
+                                    0.5483871, 0.58064516, 0.61290323, 0.64516129,
+                                    0.67741935, 0.70967742, 0.74193548, 0.77419355,
+                                    0.80645161, 0.83870968, 0.87096774, 0.90322581,
+                                    0.93548387, 0.96774194, 1.]),
+                  'scale': np.array([0.5, 0.6, 0.7, 0.8, 0.9, 1.]),
+                  'orientation': np.array([0., 0.16110732, 0.32221463, 0.48332195,
+                                           0.64442926, 0.80553658, 0.96664389, 1.12775121,
+                                           1.28885852, 1.44996584, 1.61107316, 1.77218047,
+                                           1.93328779, 2.0943951, 2.25550242, 2.41660973,
+                                           2.57771705, 2.73882436, 2.89993168, 3.061039,
+                                           3.22214631, 3.38325363, 3.54436094, 3.70546826,
+                                           3.86657557, 4.02768289, 4.1887902, 4.34989752,
+                                           4.51100484, 4.67211215, 4.83321947, 4.99432678,
+                                           5.1554341, 5.31654141, 5.47764873, 5.63875604,
+                                           5.79986336, 5.96097068, 6.12207799, 6.28318531]),
+                  'shape': np.array([1., 2., 3.]),
+                  'color': np.array([1.])}
+
+    lat_values_max = {k: v.max() for k,v in lat_values.items()}
+    factor_maxes = np.array([lat_values_max['shape'], lat_values_max['scale'], lat_values_max['orientation'], lat_values_max['posX'], lat_values_max['posY']])
+
+    def __init__(self, root=os.path.join(DIR, '../data/dsprites/'), train=True, biased_version=False, **kwargs):
+        super().__init__(root, [transforms.ToTensor()], **kwargs)
+
+        if biased_version is True:
+            self.logger.info('Using biased DSprites version.')
+            self.files = {"all": "dsprites_biased.npz", "train": "dsprites_train_biased.npz", "test": "dsprites_test_biased.npz"}
+
+        self.save_path = os.path.join(self.root, 'dsprites.npz')
+        self.all_data = os.path.join(root, self.files["all"])
+        self.train_data = os.path.join(root, self.files["train"])
+        self.test_data = os.path.join(root, self.files["test"])
+        # print('All: {}\nTrain: {}\nTest: {}'.format(self.all_data, self.train_data, self.test_data))
+
+        if os.path.isfile(os.path.join(root, self.files["train"])) is False:
+            self.logger.info('Creating splits in folder {}'.format(self.root))
+            self.create_splits(root=root)
+
+        if kwargs['metrics'] is True:
+            dataset_zip = np.load(self.all_data)
+        else:
+            if train is True:
+                dataset_zip = np.load(self.train_data)
+            else:
+                dataset_zip = np.load(self.test_data)
+
+        self.imgs = dataset_zip['imgs']
+        self.lat_values = dataset_zip['latents_values']
+
+    def download(self):
+        """Download the dataset and create biased version."""
+           
+        os.makedirs(self.root)
+        self.save_path = os.path.join(self.root, 'dsprites.npz')
+        subprocess.check_call(["curl", "-L", type(self).urls["train"],
+                               "--output", self.save_path])
+
+        self.biased_sampling(self.root)
+
+    
+    def create_splits(self, root):
+        from sklearn.model_selection import train_test_split
+
+        ds = np.load(self.save_path)
+        imgs_all = ds['imgs']
+        values_all = ds['latents_values']
+        classes_all = ds['latents_classes']
+
+        imgs_train, imgs_test, values_train, values_test, classes_train, classes_test = train_test_split(imgs_all, values_all, classes_all, test_size=0.1)
+        
+        np.savez_compressed(self.all_data, imgs=imgs_all, latents_values=values_all, latents_classes=classes_all)
+        np.savez_compressed(self.train_data, imgs=imgs_train, latents_values=values_train, latents_classes=classes_train)
+        np.savez_compressed(self.test_data, imgs=imgs_test, latents_values=values_test, latents_classes=classes_test)
+
+    def biased_sampling(self, root):
+
+        ds = np.load(self.save_path)
+
+        imgs_all = ds['imgs']
+        values_all = ds['latents_values']
+        classes_all = ds['latents_classes']
+
+        values_square = values_all[values_all[:,1]==1]
+        imgs_square = imgs_all[values_all[:,1]==1]
+        classes_square = classes_all[classes_all[:,1]==1]
+
+        values_nonsquare = values_all[values_all[:,1]!=1]
+        imgs_nonsquare = imgs_all[values_all[:,1]!=1]
+        classes_nonsquare = classes_all[classes_all[:,1]!=1]
+
+        values_square_x = values_square[:,4]
+
+        probs = norm.pdf(values_square_x, loc=0.5, scale=0.2)
+        w = probs/probs.sum()
+
+        bidx = np.random.choice(values_square.shape[0], size=int(values_square_x.shape[0]/1.75), replace=False, p=w)
+        biased_sample_values_square = values_square[bidx]
+        biased_sample_imgs_square = imgs_square[bidx]
+        biased_sample_classes_square = classes_square[bidx]
+
+        values_all_biased = np.vstack([imgs_nonsquare, biased_sample_imgs_square])
+        imgs_all_biased = np.vstack([values_nonsquare, biased_sample_values_square])
+        classes_all_biased = np.vstack([classes_nonsquare, biased_sample_classes_square])
+
+        np.savez_compressed(os.path.join(root, 'dsprites_biased.npz'), imgs=imgs_all_biased, latents_values=values_all_biased, latents_classes=classes_all_biased)
+
+
+    def __getitem__(self, idx):
+        """Get the image of `idx`
+        Return
+        ------
+        sample : torch.Tensor
+            Tensor in [0.,1.] of shape `img_size`.
+
+        lat_value : np.array
+            Array of length 6, that gives the value of each factor of variation.
+        """
+        # stored image have binary and shape (H x W) so multiply by 255 to get pixel
+        # values + add dimension
+        sample = np.expand_dims(self.imgs[idx] * 255, axis=-1)
+
+        # ToTensor transforms numpy.ndarray (H x W x C) in the range
+        # [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
+        sample = self.transforms(sample)
+
+        # Shape, Scale, Orientation, posX, posY
+        lat_value = self.lat_values[idx][1:] / self.factor_maxes
+        return sample, lat_value
+
+
+class ScreamDSprites(DSprites):
+    """Scream DSprites.
+    This data set is the same as the original DSprites data set except that when
+    sampling the observations X, a random patch of the Scream image is sampled as
+    the background and the sprite is embedded into the image by inverting the
+    color of the sampled patch at the pixels of the sprite.
+
+    The ground-truth factors of variation are (in the default setting):
+        0 - shape (3 different values)
+        1 - scale (6 different values)
+        2 - orientation (40 different values)
+        3 - position x (32 different values)
+        4 - position y (32 different values)
+    """
+
+    img_size = (3, 64, 64)
+
+    def __init__(self, root=os.path.join(DIR, '../data/dsprites/'), **kwargs):
+        super().__init__(root, **kwargs)
+        with open(SCREAM_PATH, 'rb') as f:
+            scream = Image.open(f)
+            scream.thumbnail((350, 274, 3))
+            self.scream = np.array(scream) * 1. / 255.
+    
+    def __getitem__(self, idx):
+        """Get the image of `idx`
+        Return
+        ------
+        sample : torch.Tensor
+            (Color) Tensor in [0.,1.] of shape `img_size` - [N, C, H, W]
+
+        lat_value : np.array
+            Array of length 6, that gives the value of each factor of variation.
+        """
+        # stored image binary and shape (H x W)
+
+        sample = self.imgs[idx]
+        sample = np.repeat(sample[:, :, np.newaxis], 3, axis=2)
+
+        # for i in range(sample.shape[0]):
+        x_crop = np.random.randint(0, self.scream.shape[0] - 64)
+        y_crop = np.random.randint(0, self.scream.shape[1] - 64)
+        background = (self.scream[x_crop:x_crop + 64, y_crop:y_crop + 64] + 
+                np.random.uniform(0, 1, size=3)) / 2.
+        mask = (sample == 1)
+        background[mask] = 1- background[mask]
+        sample = background
+
+        # Multiply by 255 to get pixel values
+        # sample = sample * 255
+
+        # ToTensor transforms numpy.ndarray (H x W x C) in the range
+        # [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
+        sample = self.transforms(sample)
+
+        lat_value = self.lat_values[idx][1:] / self.factor_maxes
+        return sample, lat_value
+    
+
+
+
+class CelebA(DisentangledDataset):
+    """CelebA Dataset from [1].
+
+    CelebFaces Attributes Dataset (CelebA) is a large-scale face attributes dataset
+    with more than 200K celebrity images, each with 40 attribute annotations.
+    The images in this dataset cover large pose variations and background clutter.
+    CelebA has large diversities, large quantities, and rich annotations, including
+    10,177 number of identities, and 202,599 number of face images.
+
+    Notes
+    -----
+    - Link : http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    References
+    ----------
+    [1] Liu, Z., Luo, P., Wang, X., & Tang, X. (2015). Deep learning face
+        attributes in the wild. In Proceedings of the IEEE international conference
+        on computer vision (pp. 3730-3738).
+
+    """
+    urls = {"train": "https://s3-us-west-1.amazonaws.com/udacity-dlnfd/datasets/celeba.zip"}
+    files = {"train": "img_align_celeba"}
+    img_size = (3, 64, 64)
+    background_color = COLOUR_WHITE
+
+    def __init__(self, root=os.path.join(DIR, '../data/celeba'), **kwargs):
+        super().__init__(root, [transforms.ToTensor()], **kwargs)
+
+        self.imgs = glob.glob(self.train_data + '/*')
+
+    def download(self):
+        """Download the dataset."""
+        save_path = os.path.join(self.root, 'celeba.zip')
+        os.makedirs(self.root)
+        subprocess.check_call(["curl", "-L", type(self).urls["train"],
+                               "--output", save_path])
+
+        hash_code = '00d2c5bc6d35e252742224ab0c1e8fcb'
+        assert hashlib.md5(open(save_path, 'rb').read()).hexdigest() == hash_code, \
+            '{} file is corrupted.  Remove the file and try again.'.format(save_path)
+
+        with zipfile.ZipFile(save_path) as zf:
+            self.logger.info("Extracting CelebA ...")
+            zf.extractall(self.root)
+
+        os.remove(save_path)
+
+        self.logger.info("Resizing CelebA ...")
+        preprocess(self.train_data, size=type(self).img_size[1:])
+
+    def __getitem__(self, idx):
+        """Get the image of `idx`
+
+        Return
+        ------
+        sample : torch.Tensor
+            Tensor in [0.,1.] of shape `img_size`.
+
+        placeholder :
+            Placeholder value as their are no targets.
+        """
+        img_path = self.imgs[idx]
+        # img values already between 0 and 255
+        img = imread(img_path)
+
+        # put each pixel in [0.,1.] and reshape to (C x H x W)
+        img = self.transforms(img)
+
+        # no label so return 0 (note that can't return None because)
+        # dataloaders requires so
+        return img, 0
+
+
+class Chairs(datasets.ImageFolder):
+    """Chairs Dataset from [1].
+
+    Notes
+    -----
+    - Link : https://www.di.ens.fr/willow/research/seeing3Dchairs
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    References
+    ----------
+    [1] Aubry, M., Maturana, D., Efros, A. A., Russell, B. C., & Sivic, J. (2014).
+        Seeing 3d chairs: exemplar part-based 2d-3d alignment using a large dataset
+        of cad models. In Proceedings of the IEEE conference on computer vision
+        and pattern recognition (pp. 3762-3769).
+
+    """
+    urls = {"train": "https://www.di.ens.fr/willow/research/seeing3Dchairs/data/rendered_chairs.tar"}
+    files = {"train": "chairs_64"}
+    img_size = (1, 64, 64)
+    background_color = COLOUR_WHITE
+
+    def __init__(self, root=os.path.join(DIR, '../data/chairs'),
+                 logger=logging.getLogger(__name__)):
+        self.root = root
+        self.train_data = os.path.join(root, type(self).files["train"])
+        self.transforms = transforms.Compose([transforms.Grayscale(),
+                                              transforms.ToTensor()])
+        self.logger = logger
+
+        if not os.path.isdir(root):
+            self.logger.info("Downloading {} ...".format(str(type(self))))
+            self.download()
+            self.logger.info("Finished Downloading.")
+
+        super().__init__(self.train_data, transform=self.transforms)
+
+    def download(self):
+        """Download the dataset."""
+        save_path = os.path.join(self.root, 'chairs.tar')
+        os.makedirs(self.root)
+        subprocess.check_call(["curl", type(self).urls["train"],
+                               "--output", save_path])
+
+        self.logger.info("Extracting Chairs ...")
+        tar = tarfile.open(save_path)
+        tar.extractall(self.root)
+        tar.close()
+        os.rename(os.path.join(self.root, 'rendered_chairs'), self.train_data)
+
+        os.remove(save_path)
+
+        self.logger.info("Preprocessing Chairs ...")
+        preprocess(os.path.join(self.train_data, '*/*'),  # root/*/*/*.png structure
+                   size=type(self).img_size[1:],
+                   center_crop=(400, 400))
+
+
+class MNIST(datasets.MNIST):
+    """Mnist wrapper. Docs: `datasets.MNIST.`"""
+    img_size = (1, 32, 32)
+    background_color = COLOUR_BLACK
+
+    def __init__(self, train=True, root=os.path.join(DIR, '../data/mnist'), **kwargs):
+        super().__init__(root,
+                         train=train,
+                         download=True,
+                         transform=transforms.Compose([
+                             transforms.Resize(32),
+                             transforms.ToTensor()
+                         ]))
+
+
+class FashionMNIST(datasets.FashionMNIST):
+    """Fashion Mnist wrapper. Docs: `datasets.FashionMNIST.`"""
+    img_size = (1, 32, 32)
+
+    def __init__(self, train=True, root=os.path.join(DIR, '../data/fashionMnist'), **kwargs):
+        super().__init__(root,
+                         train=train,
+                         download=True,
+                         transform=transforms.Compose([
+                             transforms.Resize(32),
+                             transforms.ToTensor()
+                         ]))
+
+
+# HELPERS
+def preprocess(root, size=(64, 64), img_format='JPEG', center_crop=None):
+    """Preprocess a folder of images.
+
+    Parameters
+    ----------
+    root : string
+        Root directory of all images.
+
+    size : tuple of int
+        Size (width, height) to rescale the images. If `None` don't rescale.
+
+    img_format : string
+        Format to save the image in. Possible formats:
+        https://pillow.readthedocs.io/en/3.1.x/handbook/image-file-formats.html.
+
+    center_crop : tuple of int
+        Size (width, height) to center-crop the images. If `None` don't center-crop.
+    """
+    imgs = []
+    for ext in [".png", ".jpg", ".jpeg"]:
+        imgs += glob.glob(os.path.join(root, '*' + ext))
+
+    for img_path in tqdm(imgs):
+        img = Image.open(img_path)
+        width, height = img.size
+
+        if size is not None and width != size[1] or height != size[0]:
+            img = img.resize(size, Image.ANTIALIAS)
+
+        if center_crop is not None:
+            new_width, new_height = center_crop
+            left = (width - new_width) // 2
+            top = (height - new_height) // 2
+            right = (width + new_width) // 2
+            bottom = (height + new_height) // 2
+
+            img.crop((left, top, right, bottom))
+
+        img.save(img_path, img_format)
+
+
