@@ -9,6 +9,8 @@ import numpy as np
 import json
 import os, time, datetime
 import logging
+
+from scipy.stats import entropy
 from collections import OrderedDict
 from sklearn.metrics import mutual_info_score
 
@@ -30,8 +32,8 @@ def get_model_device(model):
     """Return the device on which a model is."""
     return next(model.parameters()).device
 
-def save_metadata(metadata, directory, filename=META_FILENAME, **kwargs):
-    """Load the metadata of a training directory.
+def save_metadata(metadata, directory='results', filename=META_FILENAME, **kwargs):
+    """ Save the metadata of a training directory.
     Parameters
     ----------
     metadata:
@@ -51,11 +53,12 @@ def save_model(model, optimizer, mean_loss, directory, epoch, device, args,
  
     model.cpu()  # Move model parameters to CPU for consistency when restoring
 
-    metadata = dict(im_shape=args.im_shape, latent_dim=args.latent_dim,
+    metadata = dict(input_dim=args.input_dim, latent_dim=args.latent_dim,
                     model_loss=args.loss_type)
 
     args_d = dict((n, getattr(args, n)) for n in dir(args) if not (n.startswith('__') or 'logger' in n))
     metadata.update(args_d)
+    args_d['timestamp'] = '{:%Y_%m_%d_%H:%M}'.format(datetime.datetime.now())
     
     model_name = args.name
     metadata_path = os.path.join(directory, 'metadata/model_{}_metadata_{:%Y_%m_%d_%H:%M}.json'.format(model_name, datetime.datetime.now()))
@@ -68,6 +71,10 @@ def save_model(model, optimizer, mean_loss, directory, epoch, device, args,
             json.dump(metadata, f, indent=4, sort_keys=True)
             
     model_path = os.path.join(directory, 'model_{}_epoch_{}_{:%Y_%m_%d_%H:%M}.pt'.format(model_name, epoch, datetime.datetime.now()))
+
+    if os.path.exists(model_path):
+        model_path = os.path.join(directory, 'model_{}_epoch_{}_{:%Y_%m_%d_%H:%M:%S}.pt'.format(model_name, epoch, datetime.datetime.now()))
+
     torch.save({'model_state_dict': model.module.state_dict() if args.multigpu is True else model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'epoch': epoch,
@@ -76,7 +83,9 @@ def save_model(model, optimizer, mean_loss, directory, epoch, device, args,
                 }, f=model_path)
     
     model.to(device)  # Move back to device
+
     print('Model saved to path {}'.format(model_path))
+    return model_path
    
 
 def save_model_online(model, optimizer, epoch, save_dir, name):
@@ -93,14 +102,23 @@ def load_model(save_path, device, optimizer=None, prediction=True):
     args = checkpoint['args']
     args = Struct(**args)
 
-    if not hasattr(args, 'prior') or args.prior == 'normal':
-        prior = distributions.Normal()
-    elif args.prior == 'flow':
-        prior = distributions.FactorialNormalizingFlow(dim=args.latent_dim, nsteps=args.flow_steps)
+    # Backwards compatibility
+    if args.dataset == 'custom':
+        args.custom = True
+    if hasattr(args, 'sampling_bias') is False:
+        args.sampling_bias = False
+    if hasattr(args, 'flow_hidden_dim') is False:
+        args.flow_hidden_dim = 36
 
-    x_dist = distributions.Bernoulli()
-    
-    model = vae.VAE(args, latent_spec=args.latent_spec, prior=prior, x_dist=x_dist)
+    try:
+        if args.use_flow is True:
+            model = vae.realNVP_VAE(args)
+        else:
+            model = vae.VAE(args)
+    except AttributeError:
+        model = vae.VAE(args)
+
+
     model.load_state_dict(checkpoint['model_state_dict'])
 
     if prediction:
@@ -112,6 +130,10 @@ def load_model(save_path, device, optimizer=None, prediction=True):
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         return args, model.to(device), optimizer
     
+    # Backwards compatibility
+    if hasattr(args, 'sampling_bias') is False:
+        args.sampling_bias = False
+
     return args, model.to(device)
 
 def logger_setup():
@@ -142,19 +164,25 @@ def log(storage, epoch, counter, mean_epoch_loss, total_loss, best_loss, start_t
     try:
         reconstruction_loss = storage['reconstruction_loss'][-1]
         kl_loss = storage['kl_loss'][-1]
+        elbo = storage['ELBO'][-1]
     except IndexError:
-        reconstruction_loss, kl_loss = np.nan, np.nan
-    
-    print(header)
+        reconstruction_loss, kl_loss, elbo = np.nan, np.nan, np.nan
+
+    if logger is not None:
+        report_f = logger.info   
+    else:
+        report_f = print
+
+    report_f(header)
 
     if header == '[TRAIN]':
-        print("Epoch {} | Mean epoch loss: {:.3f} | Total loss: {:.3f} | Reco Loss: {:.3f} | KL Loss: {:.3f} | "
-            "Rate: {} examples/s | Time: {:.1f} s | Improved: {}".format(epoch, mean_epoch_loss, total_loss, reconstruction_loss,
-            kl_loss, int(batch_size*counter / (log_interval * (time.time()-t0))), time.time()-start_time, improved))
+        report_f("Epoch {} | Mean epoch loss: {:.3f} | Total loss: {:.3f} | ELBO: {:.3f} | Reco Loss: {:.3f} | KL Loss: {:.3f} | "
+                 "Rate: {} examples/s | Time: {:.1f} s | Improved: {}".format(epoch, mean_epoch_loss, total_loss, elbo, 
+                 reconstruction_loss, kl_loss, int(batch_size*counter / (log_interval * (time.time()-t0))), time.time()-start_time, improved))
     else:
-        print("Epoch {} | Mean epoch loss: {:.3f} | Total loss: {:.3f} | Reco Loss: {:.3f} | KL Loss: {:.3f} | "
-            "Time: {:.1f} s | Improved: {}".format(epoch, mean_epoch_loss, total_loss, reconstruction_loss,
-            kl_loss, time.time()-start_time, improved))
+        report_f("Epoch {} | Mean epoch loss: {:.3f} | Total loss: {:.3f} | ELBO: {:.3f} | Reco Loss: {:.3f} | KL Loss: {:.3f} | "
+                 "Time: {:.1f} s | Improved: {}".format(epoch, mean_epoch_loss, total_loss, elbo, reconstruction_loss,
+                 kl_loss, time.time()-start_time, improved))
 
     return best_loss
 
@@ -178,7 +206,16 @@ def summary(model, input_size, batch_size=-1, device="cuda"):
             elif isinstance(output, dict):
                 summary[m_key]["output_shape"] = []
                 getsize = lambda x: [-1] + [int(np.squeeze(list(o.size())[1:])) for o in x]
-                summary[m_key]["output_shape"] += [getsize(v) for v in output.values()]
+                # output.pop('hidden')
+                output = {}
+                for k, v in zip(output.keys(), output.values()):
+                    if isinstance(out, list):
+                        output_i = {k: torch.cat(v, axis=-1)}
+                    elif isinstance(out, torch.Tensor):
+                        output_i = {k: v}
+                    output.update(output_i)
+
+                summary[m_key]["output_shape"] += [getsize(output.values())]
 
                 # summary[m_key]["output_shape"] = [
                 #    [-1] + list(v.size())[1:] for v in output.values()]
@@ -279,3 +316,79 @@ def summary(model, input_size, batch_size=-1, device="cuda"):
     print("Params size (MB): %0.2f" % total_params_size)
     print("Estimated Total Size (MB): %0.2f" % total_size)
     print("----------------------------------------------------------------")
+
+def jsd_metric(df, selection_fraction=0.005, nbins=32, dE_min=-0.25, dE_max=0.1, mbc_min=5.2425, mbc_max=5.29, variable='B_Mbc'):
+    """
+    Attempt to quantify sculpting.
+    Evaluates mass decorrelation on some blackbox learner by evaluating a discrete
+    approximation of the Jensen-Shannon divergence between the distributions of interest
+    (here a mass-related quantity) passing and failing some learner threshold. If the 
+    learned representation used for classification is noninformative of the variable of
+    interest this should be low.
+    """
+
+    def _one_hot_encoding(x, nbins):
+        x_one_hot = np.zeros((x.shape[0], nbins))
+        x_one_hot[np.arange(x.shape[0]), x] = 1
+        x_one_hot_sum = np.sum(x_one_hot, axis=0)/x_one_hot.shape[0]
+
+        return x_one_hot_sum
+
+    try:
+        df_bkg = df[df.label<0.5]
+    except AttributeError:
+        df_bkg = df[df.y_true<0.5]
+
+    #try:
+    #    df_bkg = df_bkg[df_bkg.B_deltaE > -0.25].query('B_deltaE < 0.1')
+    #except AttributeError:
+    #    df_bkg = df_bkg[df_bkg._B_deltaE > -0.25].query('_B_deltaE < 0.1')
+
+    select_bkg = df_bkg.nlargest(int(df_bkg.shape[0]*selection_fraction), columns='y_prob')
+    print('Surviving events', select_bkg.shape)
+    min_threshold = select_bkg.y_prob.min()
+    print(min_threshold)
+
+    df_pass = df_bkg[df_bkg.y_prob > min_threshold]
+    df_fail = df_bkg[df_bkg.y_prob < min_threshold]
+    print('Passing events', df_pass.shape)
+
+    try:
+        df_bkg_pass = df_pass[df_pass.label < 0.5]
+        df_bkg_fail = df_fail[df_fail.label < 0.5]
+    except AttributeError:
+        df_bkg_pass = df_pass[df_pass.y_true < 0.5]
+        df_bkg_fail = df_fail[df_fail.y_true < 0.5]
+    print('Passing bkg events', df_bkg_pass.shape)
+
+    # N_bkg_pass = int(df_bkg_pass._weight_.sum())
+    # N_bkg_fail = int(df_bkg_fail._weight_.sum())
+    # print('N_bkg_pass / N_bkg_fail: {}'.format(N_bkg_pass/N_bkg_fail))
+
+    # Discretization
+    if variable == 'B_Mbc':
+        try:
+            bkg_pass_discrete = np.digitize(df_bkg_pass.B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins+1), right=False)-1
+            bkg_fail_discrete = np.digitize(df_bkg_fail.B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins+1), right=False)-1
+        except AttributeError:
+            bkg_pass_discrete = np.digitize(df_bkg_pass._B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins+1), right=False)-1
+            bkg_fail_discrete = np.digitize(df_bkg_fail._B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins+1), right=False)-1
+    elif variable =='dE':
+        try:
+            bkg_pass_discrete = np.digitize(df_bkg_pass.B_deltaE, bins=np.linspace(dE_min,dE_max,nbins+1), right=False)-1
+            bkg_fail_discrete = np.digitize(df_bkg_fail.B_deltaE, bins=np.linspace(dE_min,dE_max,nbins+1), right=False)-1
+        except AttributeError:
+            bkg_pass_discrete = np.digitize(df_bkg_pass._B_deltaE, bins=np.linspace(dE_min,dE_max,nbins+1), right=False)-1
+            bkg_fail_discrete = np.digitize(df_bkg_fail._B_deltaE, bins=np.linspace(dE_min,dE_max,nbins+1), right=False)-1
+
+    bkg_pass_sum = _one_hot_encoding(bkg_pass_discrete, nbins)
+    bkg_fail_sum = _one_hot_encoding(bkg_fail_discrete, nbins)
+
+    M = 0.5*bkg_pass_sum + 0.5*bkg_fail_sum
+
+    kld_pass = entropy(bkg_pass_sum, M)
+    kld_fail = entropy(bkg_fail_sum, M)
+
+    jsd_discrete = 0.5*kld_pass + 0.5*kld_fail
+
+    return jsd_discrete

@@ -1141,3 +1141,87 @@ Iter 0500 | Time 0.9707(0.9004) | Loss 1.462154(1.461540) | NFE Forward 32(34.0)
 [TEST] Iter 0500 | Test Loss 1.464257 | NFE 32 [*]
 Iter 3200 | Time 1.2994(1.3073) | Loss 0.349894(0.336291) | NFE Forward 98(95.0) | NFE Backward 87(89.4) | CNF Time 0.5000(0.5000)
 [TEST] Iter 3200 | Test Loss 0.328823 | NFE 92 []
+Iter 0600 | Time 0.9645(0.9382) | Loss 1.427234(1.424265) | NFE Forward 32(32.9) | NFE Backward 51(40.8) | CNF Time 0.0566(0.0602)
+[TEST] Iter 0600 | Test Loss 1.435738 | NFE 32 [*]
+Iter 0700 | Time 0.8156(0.8626) | Loss 1.489052(1.465974) | NFE Forward 32(32.1) | NFE Backward 33(36.3) | CNF Time 0.0351(0.0376)
+[TEST] Iter 0700 | Test Loss 1.480816 | NFE 32 []
+Iter 0800 | Time 0.8550(0.8637) | Loss 1.633553(1.597260) | NFE Forward 32(34.0) | NFE Backward 39(36.6) | CNF Time 0.0210(0.0226)
+[TEST] Iter 0800 | Test Loss 1.619815 | NFE 32 []
+Iter 0900 | Time 0.7294(0.7438) | Loss 1.794463(1.767338) | NFE Forward 26(27.3) | NFE Backward 33(32.1) | CNF Time 0.0120(0.0130)
+[TEST] Iter 0900 | Test Loss 1.780951 | NFE 26 []
+Iter 1000 | Time 0.6834(0.7092) | Loss 1.967809(1.958237) | NFE Forward 26(24.6) | NFE Backward 33(32.1) | CNF Time 0.0066(0.0072)
+[TEST] Iter 1000 | Test Loss 1.971731 | NFE 32 []
+Iter 1100 | Time 0.6471(0.6330) | Loss 2.177160(2.144080) | NFE Forward 26(24.4) | NFE Backward 27(27.8) | CNF Time 0.0034(0.0038)
+[TEST] Iter 1100 | Test Loss 2.167290 | NFE 26 []
+Iter 1200 | Time 0.4660(0.4734) | Loss 2.299521(2.291272) | NFE Forward 20(19.6) | NFE Backward 21(21.2) | CNF Time 0.0017(0.0019)
+[TEST] Iter 1200 | Test Loss 2.307953 | NFE 20 []
+Iter 1300 | Time 0.4640(0.4840) | Loss 2.393080(2.386598) | NFE Forward 20(19.6) | NFE Backward 21(21.4) | CNF Time 0.0008(0.0009)
+[TEST] Iter 1300 | Test Loss 2.399638 | NFE 20 []
+Iter 1400 | Time 0.5234(0.5036) | Loss 2.444135(2.443631) | NFE Forward 20(19.8) | NFE Backward 27(22.6) | CNF Time 0.0004(0.0004)
+[TEST] Iter 1400 | Test Loss 2.448762 | NFE 20 []
+Iter 1500 | Time 0.4788(0.5122) | Loss 2.475831(2.472499) | NFE Forward 20(20.0) | NFE Backward 21(22.2) | CNF Time 0.0001(0.0002)
+[TEST] Iter 1500 | Test Loss 2.482075 | NFE 20 []
+Iter 1600 | Time 0.5144(0.5138) | Loss 2.483870(2.486377) | NFE Forward 20(20.0) | NFE Backward 21(23.1) | CNF Time 0.0001(0.0001)
+[TEST] Iter 1600 | Test Loss 2.483017 | NFE 20 []
+Iter 1700 | Time 0.5290(0.5150) | Loss 2.494584(2.491416) | NFE Forward 20(20.0) | NFE Backward 21(22.2) | CNF Time 0.0000(0.0000)
+[TEST] Iter 1700 | Test Loss 2.492851 | NFE 20 []
+Iter 1800 | Time 0.4613(0.5091) | Loss 2.492468(2.494266) | NFE Forward 14(19.5) | NFE Backward 21(22.3) | CNF Time 0.0000(0.0000)
+[TEST] Iter 1800 | Test Loss 2.496845 | NFE 20 []
+Iter 1900 | Time 0.5275(0.5082) | Loss 2.498943(2.494890) | NFE Forward 20(19.7) | NFE Backward 21(22.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 1900 | Test Loss 2.493134 | NFE 20 []
+Iter 2000 | Time 0.5119(0.5049) | Loss 2.496050(2.494190) | NFE Forward 20(20.0) | NFE Backward 21(21.8) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2000 | Test Loss 2.495107 | NFE 20 []
+Iter 2100 | Time 0.5178(0.5125) | Loss 2.494964(2.495183) | NFE Forward 20(19.8) | NFE Backward 27(22.8) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2100 | Test Loss 2.493013 | NFE 20 []
+Iter 2200 | Time 0.5266(0.5145) | Loss 2.502920(2.495570) | NFE Forward 20(19.9) | NFE Backward 27(22.8) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2200 | Test Loss 2.496040 | NFE 20 []
+Iter 2300 | Time 0.4693(0.5054) | Loss 2.496576(2.495017) | NFE Forward 20(20.0) | NFE Backward 21(22.4) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2300 | Test Loss 2.498814 | NFE 20 []
+Iter 2400 | Time 0.5113(0.4964) | Loss 2.493896(2.495772) | NFE Forward 20(19.6) | NFE Backward 27(21.9) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2400 | Test Loss 2.495577 | NFE 20 []
+Iter 2500 | Time 0.5187(0.4903) | Loss 2.493290(2.496126) | NFE Forward 20(19.8) | NFE Backward 21(21.3) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2500 | Test Loss 2.492198 | NFE 20 []
+Iter 2600 | Time 0.4759(0.4908) | Loss 2.500962(2.494525) | NFE Forward 20(19.8) | NFE Backward 21(21.3) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2600 | Test Loss 2.499933 | NFE 20 []
+Iter 2700 | Time 0.5138(0.4936) | Loss 2.495091(2.494939) | NFE Forward 20(19.6) | NFE Backward 27(21.9) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2700 | Test Loss 2.496485 | NFE 20 []
+Iter 2800 | Time 0.4549(0.4780) | Loss 2.493398(2.495473) | NFE Forward 20(19.9) | NFE Backward 21(21.1) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2800 | Test Loss 2.495195 | NFE 20 []
+Iter 2900 | Time 0.4865(0.4846) | Loss 2.494968(2.494226) | NFE Forward 20(20.0) | NFE Backward 21(21.2) | CNF Time 0.0000(0.0000)
+[TEST] Iter 2900 | Test Loss 2.499285 | NFE 20 []
+Iter 3000 | Time 0.4720(0.4830) | Loss 2.492375(2.495747) | NFE Forward 20(19.5) | NFE Backward 21(21.4) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3000 | Test Loss 2.494009 | NFE 20 []
+Iter 3100 | Time 0.4770(0.4765) | Loss 2.492125(2.494765) | NFE Forward 20(19.9) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3100 | Test Loss 2.496904 | NFE 20 []
+Iter 3200 | Time 0.4722(0.4719) | Loss 2.498013(2.495791) | NFE Forward 20(19.9) | NFE Backward 21(21.1) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3200 | Test Loss 2.500115 | NFE 20 []
+Iter 3300 | Time 0.4645(0.4762) | Loss 2.493996(2.495684) | NFE Forward 20(19.9) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3300 | Test Loss 2.493217 | NFE 20 []
+Iter 3400 | Time 0.4601(0.4729) | Loss 2.493412(2.494732) | NFE Forward 20(20.0) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3400 | Test Loss 2.498284 | NFE 20 []
+Iter 3500 | Time 0.4738(0.4723) | Loss 2.499558(2.495707) | NFE Forward 20(19.8) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3500 | Test Loss 2.490129 | NFE 20 []
+Iter 3600 | Time 0.4654(0.4713) | Loss 2.496874(2.494065) | NFE Forward 20(19.7) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3600 | Test Loss 2.487099 | NFE 20 []
+Iter 3700 | Time 0.5205(0.4725) | Loss 2.493303(2.495602) | NFE Forward 20(19.7) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3700 | Test Loss 2.490753 | NFE 20 []
+Iter 3800 | Time 0.4793(0.4742) | Loss 2.495382(2.496024) | NFE Forward 20(19.8) | NFE Backward 21(21.3) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3800 | Test Loss 2.500959 | NFE 20 []
+Iter 3900 | Time 0.4653(0.4686) | Loss 2.499078(2.495543) | NFE Forward 20(20.0) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 3900 | Test Loss 2.507476 | NFE 20 []
+Iter 4000 | Time 0.4778(0.4733) | Loss 2.491665(2.494958) | NFE Forward 20(19.4) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 4000 | Test Loss 2.500544 | NFE 20 []
+Iter 4100 | Time 0.4626(0.4673) | Loss 2.498121(2.494442) | NFE Forward 20(19.3) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 4100 | Test Loss 2.488545 | NFE 20 []
+Iter 4200 | Time 0.4795(0.4708) | Loss 2.502789(2.494762) | NFE Forward 20(19.9) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 4200 | Test Loss 2.498373 | NFE 20 []
+Iter 4300 | Time 0.4603(0.4680) | Loss 2.495788(2.495353) | NFE Forward 20(19.5) | NFE Backward 21(21.1) | CNF Time 0.0000(0.0000)
+[TEST] Iter 4300 | Test Loss 2.497100 | NFE 20 []
+Iter 4400 | Time 0.4758(0.4687) | Loss 2.498219(2.494946) | NFE Forward 14(19.2) | NFE Backward 21(21.1) | CNF Time 0.0000(0.0000)
+[TEST] Iter 4400 | Test Loss 2.487953 | NFE 14 []
+Iter 4500 | Time 0.4652(0.4685) | Loss 2.500176(2.496339) | NFE Forward 20(18.9) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 4500 | Test Loss 2.494857 | NFE 20 []
+Iter 4600 | Time 0.4590(0.4667) | Loss 2.498913(2.494632) | NFE Forward 14(18.1) | NFE Backward 21(21.0) | CNF Time 0.0000(0.0000)
+[TEST] Iter 4600 | Test Loss 2.495548 | NFE 20 []
+Iter 4700 | Time 0.4574(0.4732) | Loss 2.498049(2.494440) | NFE Forward 20(18.8) | NFE Backward 21(21.1) | CNF Time 0.0000(0.0000)
+[TEST] Iter 4700 | Test Loss 2.493306 | NFE 20 []

@@ -15,11 +15,13 @@ import zipfile
 import glob
 import logging
 import tarfile
+import numpy as np
+import pandas as pd
+
 from skimage.io import imread
 from scipy.stats import norm
 from PIL import Image
 from tqdm import tqdm
-import numpy as np
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -33,7 +35,8 @@ DATASETS_DICT = {"mnist": "MNIST",
                  "dsprites": "DSprites",
                  "dsprites_scream": "ScreamDSprites",
                  "celeba": "CelebA",
-                 "chairs": "Chairs"}
+                 "chairs": "Chairs",
+                 "custom": "Custom"}
 DATASETS = list(DATASETS_DICT.keys())
 SCREAM_PATH = '/home/jtan/gpu/jtan/github/disentangled/data/scream/scream.jpg'
 
@@ -52,14 +55,13 @@ def get_img_size(dataset):
     """Return the correct image size."""
     return get_dataset(dataset).img_size
 
-
 def get_background(dataset):
     """Return the image background color."""
     return get_dataset(dataset).background_color
 
 
-def get_dataloaders(dataset, train=True, root=None, shuffle=True, pin_memory=True,
-                    batch_size=128, biased_version=False, logger=logging.getLogger(__name__), metrics=False, **kwargs):
+def get_dataloaders(dataset, train=True, root=None, shuffle=True, pin_memory=True, evaluate=False, 
+                    batch_size=128, sampling_bias=False, logger=logging.getLogger(__name__), metrics=False, **kwargs):
     """A generic data loader
 
     Parameters
@@ -77,15 +79,74 @@ def get_dataloaders(dataset, train=True, root=None, shuffle=True, pin_memory=Tru
     Dataset = get_dataset(dataset)
 
     if root is None:
-        dataset = Dataset(logger=logger, train=train, biased_version=biased_version, metrics=metrics)
+        dataset = Dataset(logger=logger, train=train, sampling_bias=sampling_bias, metrics=metrics, evaluate=evaluate)
     else:
-        dataset = Dataset(root=root, logger=logger, train=train, biased_version=biased_version, metrics=metrics)
+        dataset = Dataset(root=root, logger=logger, train=train, sampling_bias=sampling_bias, metrics=metrics, evaluate=evaluate)
+
+
+    if sampling_bias is True:
+        print('Using biased sampler.')
+        sampler = dataset.get_biased_sampler()
+    else:
+        sampler = None
 
     return DataLoader(dataset,
                       batch_size=batch_size,
                       shuffle=shuffle,
                       pin_memory=pin_memory,
-                      **kwargs)
+                      sampler=sampler)  # **kwargs)
+
+
+class Custom(torch.utils.data.TensorDataset):
+    """Custom tabular dataset specified under experimental section of paper
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+    """
+
+    files = {"train": "pivot_Mbc_train_small_scaled.h5", 
+             "test": "pivot_Mbc_test_small_scaled.h5",
+             "val": "pivot_Mbc_val_small_scaled.h5"}
+
+    def __init__(self, root='/data/cephfs/punim0011/jtan/data', logger=logging.getLogger(__name__), train=True,
+        evaluate=False, adversary=False, parquet=False, pivots=['_pivot'], auxillary=None, adv_n_classes=8, **kwargs):
+
+        self.root = root
+        self.logger = logger
+        self.train_data = os.path.join(root, type(self).files["train"])
+        self.test_data = os.path.join(root, type(self).files["test"])
+        self.val_data = os.path.join(root, type(self).files["val"])
+
+        assert (train and evaluate) is False, 'Training and evaluation mode are incompatible!'
+
+        if train is True:
+            loadfile = self.train_data
+        else:
+            if evaluate is True:
+                loadfile = self.test_data
+            else:
+                # Online validation
+                loadfile = self.val_data
+
+        if evaluate is True:
+            df, features, labels, pivots = _load_custom_data(loadfile, evaluate=evaluate, adversary=adversary, parquet=parquet,
+                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes)
+            self.df = df
+        else:
+            features, labels, pivots = _load_custom_data(loadfile, evaluate=evaluate, adversary=adversary, parquet=parquet,
+                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes)
+
+        N = features.shape[0]
+        K = pivots.shape[1]
+        self.input_dim = features.shape[-1]
+        self.n_gen_factors = K
+
+        gen_factors = torch.cat([torch.Tensor(labels).view(N,1), torch.Tensor(pivots).view(N,K)], axis=-1) 
+
+        self.tensors = torch.Tensor(features), gen_factors
+
 
 
 class DisentangledDataset(Dataset, abc.ABC):
@@ -174,6 +235,7 @@ class DSprites(DisentangledDataset):
     lat_names = ('shape', 'scale', 'orientation', 'posX', 'posY')
     lat_sizes = np.array([3, 6, 40, 32, 32])
     img_size = (1, 64, 64)
+    n_gen_factors = len(lat_sizes)
     background_color = COLOUR_BLACK
     lat_values = {'posX': np.array([0., 0.03225806, 0.06451613, 0.09677419, 0.12903226,
                                     0.16129032, 0.19354839, 0.22580645, 0.25806452,
@@ -208,14 +270,17 @@ class DSprites(DisentangledDataset):
     lat_values_max = {k: v.max() for k,v in lat_values.items()}
     factor_maxes = np.array([lat_values_max['shape'], lat_values_max['scale'], lat_values_max['orientation'], lat_values_max['posX'], lat_values_max['posY']])
 
-    def __init__(self, root=os.path.join(DIR, '../data/dsprites/'), train=True, biased_version=False, **kwargs):
+    def __init__(self, root=os.path.join(DIR, '../data/dsprites/'), train=True, sampling_bias=False, **kwargs):
         super().__init__(root, [transforms.ToTensor()], **kwargs)
 
-        if biased_version is True:
-            self.logger.info('Using biased DSprites version.')
-            self.files = {"all": "dsprites_biased.npz", "train": "dsprites_train_biased.npz", "test": "dsprites_test_biased.npz"}
 
-        self.save_path = os.path.join(self.root, 'dsprites.npz')
+        self.sampling_bias = sampling_bias
+        if self.sampling_bias is True:
+            self.logger.info('Using biased DSprites version.')
+            # self.files = {"all": "dsprites_biased.npz", "train": "dsprites_train_biased.npz", "test": "dsprites_test_biased.npz"}
+            self.files = {"all": "dsprites.npz", "train": "dsprites_train.npz", "test": "dsprites_test.npz"}
+
+        self.save_path = os.path.join(self.root, self.files["all"])
         self.all_data = os.path.join(root, self.files["all"])
         self.train_data = os.path.join(root, self.files["train"])
         self.test_data = os.path.join(root, self.files["test"])
@@ -244,7 +309,7 @@ class DSprites(DisentangledDataset):
         subprocess.check_call(["curl", "-L", type(self).urls["train"],
                                "--output", self.save_path])
 
-        self.biased_sampling(self.root)
+        self.generate_biased_sample(self.root)
 
     
     def create_splits(self, root):
@@ -261,7 +326,33 @@ class DSprites(DisentangledDataset):
         np.savez_compressed(self.train_data, imgs=imgs_train, latents_values=values_train, latents_classes=classes_train)
         np.savez_compressed(self.test_data, imgs=imgs_test, latents_values=values_test, latents_classes=classes_test)
 
-    def biased_sampling(self, root):
+    def get_biased_sampler(self):
+
+        from scipy.stats import multivariate_normal
+
+        mu = np.array([0.5, 0.5])
+        Sigma = np.eye(2)/25
+        mvn = multivariate_normal(mu, Sigma)
+
+        v = self.lat_values
+        pos_xy = v[:,[4,5]]
+        weights = np.ones(len(v))
+        probs = mvn.pdf(pos_xy)
+
+        # Only reweight images with class ellipse (now square)
+        sq_idx = np.where(v[:,1]==1)[0]
+
+        other_idx = np.where(v[:,1]!=1)[0]
+        weights[sq_idx] = probs[sq_idx]
+        # weights[other_idx] = np.clip(1 - probs[other_idx], 0.75, None)
+        weights = torch.Tensor(weights)
+
+        biased_sampler = torch.utils.data.WeightedRandomSampler(weights, len(weights), replacement=True)
+
+        return biased_sampler
+
+
+    def generate_biased_sample(self, root):
 
         ds = np.load(self.save_path)
 
@@ -287,8 +378,8 @@ class DSprites(DisentangledDataset):
         biased_sample_imgs_square = imgs_square[bidx]
         biased_sample_classes_square = classes_square[bidx]
 
-        values_all_biased = np.vstack([imgs_nonsquare, biased_sample_imgs_square])
-        imgs_all_biased = np.vstack([values_nonsquare, biased_sample_values_square])
+        imgs_all_biased = np.vstack([imgs_nonsquare, biased_sample_imgs_square])
+        values_all_biased = np.vstack([values_nonsquare, biased_sample_values_square])
         classes_all_biased = np.vstack([classes_nonsquare, biased_sample_classes_square])
 
         np.savez_compressed(os.path.join(root, 'dsprites_biased.npz'), imgs=imgs_all_biased, latents_values=values_all_biased, latents_classes=classes_all_biased)
@@ -588,3 +679,139 @@ def preprocess(root, size=(64, 64), img_format='JPEG', center_crop=None):
         img.save(img_path, img_format)
 
 
+def smooth_vars():
+    return [
+             'BB_gamma_hel',
+             'B_CosTBTO',
+             'B_CosTBz',
+             'B_R2',
+             'B_ThrustB',
+             'B_ThrustO',
+             'B_cms_cosTheta',
+             'B_cms_daughterSumOf_pt',
+             'B_gamma_cmsEnergyErr',
+             'B_gamma_cms_E',
+             'B_gamma_cms_clusterAbsZernikeMoment40',
+             'B_gamma_cms_clusterAbsZernikeMoment51',
+             'B_gamma_cms_clusterE1E9',
+             'B_gamma_cms_clusterE9E21',
+             'B_gamma_cms_clusterErrorE',
+             'B_gamma_cms_clusterHighestE',
+             'B_gamma_cms_clusterLAT',
+             'B_gamma_cms_clusterPhi',
+             'B_gamma_cms_clusterTheta',
+             'B_gamma_cms_clusterUncorrE',
+             'B_gamma_cms_cosTheta',
+             'B_gamma_cms_eRecoil',
+             'B_gamma_cms_m2Recoil',
+             'B_gamma_cms_pRecoil',
+             'B_gamma_cms_phi',
+             'B_gamma_cms_pt',
+             'B_useCMSFrame_bodaughterHighest_boE',
+             'B_useCMSFrame_bodaughterHighest_bop',
+             'B_useCMSFrame_bodaughterHighest_bopt',
+             'B_useCMSFrame_bodaughterHighest_bopx',
+             'B_useCMSFrame_bodaughterHighest_bopy',
+             'B_useCMSFrame_bodaughterHighest_bopz',
+             'B_useCMSFrame_bodaughterSumOf_bopt',
+             'B_useCMSFrame_bodaughterSumOf_bopx',
+             'B_useCMSFrame_bodaughterSumOf_bopy',
+             'B_useCMSFrame_bodaughterSumOf_bopz']
+
+def omit_vars():
+    omit10 = ['B_useCMSFrame_bodaughterSumOf_bopx',
+           'B_useCMSFrame_bodaughterSumOf_bopy',
+           'B_useCMSFrame_bodaughterSumOf_bopz', 'B_gamma_cms_m2Recoil',
+           'B_gamma_cms_E', 'B_CosTBTO',
+           'B_useCMSFrame_bodaughterHighest_boE',
+           'B_useCMSFrame_bodaughterHighest_bop', 'B_gamma_cms_pt',
+           'B_useCMSFrame_bodaughterHighest_bopt']
+
+    omit20 = ['B_ThrustB', 'B_cc1',
+       'B_cms_cosAngleBetweenMomentumAndVertexVector',
+       'B_cms_daughterSumOf_pt', 'B_useCMSFrame_bodaughterSumOf_bopt',
+       'B_gamma_cms_clusterErrorE', 'B_gamma_cosMomVert',
+       'B_gamma_cms_clusterUncorrE', 'B_gamma_cmsPyErr',
+       'B_gamma_cms_eRecoil', 'B_gamma_cms_minC2TDist', 'B_cc2']
+    
+    omit30 = ['B_hso10', 'B_gamma_cms_clusterHighestE',
+       'B_useCMSFrame_bodaughterHighest_bopx', 'B_gamma_cmsEnergyErr',
+       'B_hso02', 'B_CosTBz', 'B_ThrustO', 'B_gamma_cmsPxErr',
+       'B_useCMSFrame_bodaughterHighest_bopz']
+
+    omit40 = ['B_hso02', 'B_useCMSFrame_bodaughterHighest_bopz', 'B_cc4',
+       'B_useCMSFrame_bodaughterHighest_bopx', 'B_hso12',
+       'B_gamma_cms_clusterR', 'B_gamma_cmsPxErr', 'B_gamma_cms_clusterTheta',
+       'B_cms_ROE_eextra_cleanMask', 'B_gamma_cms_clusterE1E9']
+
+    omit50 = ['B_gamma_cmsPzErr', 'B_et', 'B_cms_cosTheta', 'B_gamma_cmsEnergyErr',
+              'B_gamma_cms_cosTheta', 'B_gamma_cms_clusterAbsZernikeMoment51',
+                'BB_gamma_hel', 'B_ThrustO','B_gamma_cms_clusterZernikeMVA',
+                'B_gamma_cms_clusterE9E21']
+
+    omit45 =   ['BB_gamma_hel', 'B_ThrustO','B_gamma_cms_clusterZernikeMVA',
+                'B_gamma_cms_clusterE9E21']
+    omit55 = ['B_gamma_cmsPzErr', 'B_et', 'B_cms_cosTheta', 'B_gamma_cmsEnergyErr',
+              'B_gamma_cms_cosTheta', 'B_gamma_cms_clusterAbsZernikeMoment51']
+    omit60 = ['B_cms_phi', 'B_hso14', 'B_CosTBz', 'B_gamma_cms_clusterSecondMoment',
+       'B_gamma_cms_clusterAbsZernikeMoment40', 'B_hso04',
+       'B_gamma_cms_pRecoil', 'B_gamma_cms_clusterLAT', 'B_cc7', 'B_hso00']
+
+    omit = omit10 + omit20 + omit30 + omit40 + omit55 #+ omit50
+    return omit
+
+def _load_custom_data(filename, evaluate=False, adversary=False, parquet=False,
+    pivots=['_pivot'], auxillary=None, adv_n_classes=8):
+
+    """
+    Loads tabular HEP dataset specified in experimental section of paper. 
+    """
+    from sklearn.preprocessing import MinMaxScaler
+    minmaxscaler = MinMaxScaler()
+
+    if parquet:
+        import pyarrow.parquet as pq
+        dataset = pq.ParquetDataset(filename)
+        df = dataset.read(nthreads=4).to_pandas()
+    else:
+        df = pd.read_hdf(filename, key='df')
+
+    if evaluate is False:
+        df = df.sample(frac=1).reset_index(drop=True)
+
+    if auxillary is None:
+        # Cleanup + omit variables prefixed with an underscore from training
+        auxillary = [col for col in df.columns if col.startswith('_')]
+        auxillary = list(set(auxillary))
+
+    df_features = df.drop(auxillary, axis=1)
+    df_features = df_features[smooth_vars()]  # only smooth variables
+    print('Data shape:', df_features.shape)
+    print('Features', df_features.columns.tolist())
+
+    pivots = ['_B_Mbc', '_B_deltaE']
+    pivot_df = df[pivots]
+    pivot_features = pivot_df[pivots]
+    # Transform to range [0,1]
+    scaled_pivot_features = minmaxscaler.fit_transform(pivot_features)
+
+    if adversary:
+        # Bin variable -> discrete classification problem
+        # Each protected variable must be binned separately
+        if len(pivots) == 1:
+            pivot = pivots[0]
+        pivot_df = pivot_df.assign(pivot_labels=pd.qcut(df[pivot], q=adv_n_classes, labels=False))
+        pivot_labels = pivot_df.pivot_labels
+
+    
+    if evaluate is True:
+        return df, np.nan_to_num(df_features.values), df._label.values.astype(np.int32), \
+                np.squeeze(pivot_features.values.astype(np.float32))
+    else:
+        if adversary is True:
+            return np.nan_to_num(df_features.values), df._label.values.astype(np.int32), \
+                np.squeeze(pivot_features.values.astype(np.float32)), pivot_labels.values.astype(np.int32)
+        else:
+            # Return scaled pivots
+            return np.nan_to_num(df_features.values), df._label.values.astype(np.int32), \
+                np.squeeze(scaled_pivot_features.astype(np.float32))
