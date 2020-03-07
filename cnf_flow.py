@@ -2,9 +2,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-import argparse
 import os
 import time
+import argparse
+import itertools
 import numpy as np
 import pandas as pd
 
@@ -45,9 +46,9 @@ parser.add_argument(
     choices=["ignore", "concat", "concat_v2", "squash", "concatsquash", "concatcoord", "hyper", "blend"]
 )
 parser.add_argument('--dims', type=str, default='64-64-64')
-parser.add_argument('--hdim_factor', type=int, default=10)
-parser.add_argument('--nhidden', type=int, default=1)
-parser.add_argument("--num_blocks", type=int, default=1, help='Number of stacked CNFs.')
+parser.add_argument('--hdim_factor', type=int, default=10, help='Multiplying factor between data, hidden dim.')
+parser.add_argument('--nhidden', type=int, default=1, help='Number of hidden layers defining network dynamics.')
+parser.add_argument("--num_blocks", type=int, default=1, help='Number of stacked CNFs (flow steps).')
 parser.add_argument('--time_length', type=float, default=1.0)
 parser.add_argument('--train_T', type=eval, default=True)
 parser.add_argument("--divergence_fn", type=str, default="brute_force", choices=["brute_force", "approximate"])
@@ -87,9 +88,11 @@ parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--save', type=str, default='experiments/cnf')
 parser.add_argument('--evaluate', action='store_true')
 parser.add_argument('--viz_freq', type=int, default=100)
-parser.add_argument('--val_freq', type=int, default=200)
+parser.add_argument('--val_freq', type=int, default=256)
 parser.add_argument('--log_freq', type=int, default=10)
 parser.add_argument('--gpu', type=int, default=0)
+parser.add_argument('--multigpu', action='store_true')
+
 args = parser.parse_args()
 
 # logger
@@ -103,7 +106,36 @@ if args.layer_type == "blend":
 
 logger.info(args)
 
-def compute_loss(args, model, batch_size=None):
+def get_data(args, logger):
+    test_loader = datasets.get_dataloaders(args.dataset,
+                               batch_size=args.batch_size,
+                               logger=logger,
+                               train=False,
+                               sampling_bias=args.sampling_bias,
+                               shuffle=args.shuffle)
+
+
+    train_loader = datasets.get_dataloaders(args.dataset,
+                                batch_size=args.batch_size,
+                                logger=logger,
+                                train=True,
+                                sampling_bias=args.sampling_bias,
+                                shuffle=args.shuffle)
+    args.n_data = len(train_loader.dataset)
+
+    return train_loader, test_loader
+
+
+def get_regularization_loss(model, regularization_fns, regularization_coeffs):
+    if len(regularization_coeffs) > 0:
+        reg_states = get_regularization(model, regularization_coeffs)
+        reg_loss = sum(
+            reg_state * coeff for reg_state, coeff in zip(reg_states, regularization_coeffs) if coeff != 0
+        )
+
+    return reg_loss
+
+def compute_loss(x, model, batch_size=None):
     if batch_size is None: batch_size = args.batch_size
 
     # load data
@@ -122,135 +154,168 @@ def compute_loss(args, model, batch_size=None):
     loss = -torch.mean(logpx)
     return loss
 
-def get_regularization_loss(model, regularization_fns, regularization_coeffs):
-    if len(regularization_coeffs) > 0:
-        reg_states = get_regularization(model, regularization_coeffs)
-        reg_loss = sum(
-            reg_state * coeff for reg_state, coeff in zip(reg_states, regularization_coeffs) if coeff != 0
-        )
-
-    return reg_loss
-
-def train_moons_ffjord(model, optimizer, device, logger, iterations=8000):
+def train_ffjord(model, optimizer, device, logger, iterations=8000):
     print('Using device', device)
 
     end = time.time()
     best_loss = float('inf')
+    n_vals_without_improvement = 0
     model.train()
 
-    for itr in trange(iterations, desc='Itr'):
-        optimizer.zero_grad()
-        if args.spectral_norm: spectral_norm_power_iteration(model, 1)
 
-        loss = compute_loss(args, model)
-        loss_meter.update(loss.item())
+    for epoch in trange(args.n_epochs, desc='epoch'):
 
-        if len(regularization_coeffs) > 0:
-            reg_loss = get_regularization_loss(model, regularization_fns, regularization_coeffs)
-            loss = loss + reg_loss
+        epoch_loss = []
+        epoch_test_loss = 0.
+        counter = 0
+        epoch_start_time = time.time()
 
-        total_time = count_total_time(model)
-        nfe_forward = count_nfe(model)
+        if args.early_stopping > 0 and n_vals_without_improvement > args.early_stopping:
+            break
 
-        loss.backward()
-        optimizer.step()
+        for itr, (data, gen_factors) in enumerate(tqdm(train_loader, desc='Train'), 0):
+            if args.early_stopping > 0 and n_vals_without_improvement > args.early_stopping:
+                break
 
-        nfe_total = count_nfe(model)
-        nfe_backward = nfe_total - nfe_forward
-        nfef_meter.update(nfe_forward)
-        nfeb_meter.update(nfe_backward)
-        time_meter.update(time.time() - end)
-        tt_meter.update(total_time)
+            x = cvt(data)
 
-        log_message = (
-            'Iter {:04d} | Time {:.4f}({:.4f}) | Loss {:.6f}({:.6f}) | NFE Forward {:.0f}({:.1f})'
-            ' | NFE Backward {:.0f}({:.1f}) | CNF Time {:.4f}({:.4f})'.format(
-                itr, time_meter.val, time_meter.avg, loss_meter.val, loss_meter.avg, nfef_meter.val, nfef_meter.avg,
-                nfeb_meter.val, nfeb_meter.avg, tt_meter.val, tt_meter.avg
-            )
-        )
+            optimizer.zero_grad()
+            if args.spectral_norm: spectral_norm_power_iteration(model, 1)
 
-        if len(regularization_coeffs) > 0:
-            log_message = append_regularization_to_log(log_message, regularization_fns, reg_states)
+            loss = compute_loss(x, model)
+            loss_meter.update(loss.item())
 
+            if len(regularization_coeffs) > 0:
+                reg_loss = get_regularization_loss(model, regularization_fns, regularization_coeffs)
+                loss = loss + reg_loss
 
-        if itr % args.val_freq == 0 or itr == args.niters:
-            logger.info(log_message)
-            improved = '[]'
+            total_time = count_total_time(model)
+            nfe_forward = count_nfe(model)
 
-            with torch.no_grad():
-                model.eval()
-                test_loss = compute_loss(args, model, batch_size=args.test_batch_size)
-                test_nfe = count_nfe(model)
+            loss.backward()
+            optimizer.step()
 
-                if test_loss.item() < best_loss:
-                    best_loss = test_loss.item()
-                    improved = '[*]'
+            nfe_total = count_nfe(model)
+            nfe_backward = nfe_total - nfe_forward
+            nfef_meter.update(nfe_forward)
+            nfeb_meter.update(nfe_backward)
+            time_meter.update(time.time() - end)
+            tt_meter.update(total_time)
 
-                log_message = '[TEST] Iter {:04d} | Test Loss {:.6f} | NFE {:.0f} {}'.format(itr, test_loss, test_nfe, improved)
+            end = time.time()
+
+            if itr % args.log_freq == 0 or itr == args.niters:
+                log_message = (
+                    'Epoch {:.02d} | Iter {:04d} | Time {:.4f}({:.4f}) | Loss {:.6f}({:.6f}) | NFE Forward {:.0f}({:.1f})'
+                    ' | NFE Backward {:.0f}({:.1f}) | CNF Time {:.4f}({:.4f})'.format(
+                        epoch, itr, time_meter.val, time_meter.avg, loss_meter.val, loss_meter.avg, nfef_meter.val, nfef_meter.avg,
+                        nfeb_meter.val, nfeb_meter.avg, tt_meter.val, tt_meter.avg
+                    )
+                )
+
+                if len(regularization_coeffs) > 0:
+                    log_message = append_regularization_to_log(log_message, regularization_fns, reg_states)
+
                 logger.info(log_message)
 
-            model.train()
+            end = time.time()
 
-        end = time.time()
+            if itr % args.val_freq == 0:
+                improved = '[]'
+                model.eval()
+                start_time = time.time()
+                with torch.no_grad():
+                    val_loss_meter = utils.AverageMeter()
+                    val_nfe_meter = utils.AverageMeter()
+
+                    for (x, gen_factors) in tqdm(itertools.islice(test_loader, 0, 10), desc='val'):
+                        x = cvt(x)
+                        val_loss = compute_loss(x, model)
+                        val_nfe = count_nfe(model)
+                        val_loss_meter.update(val_loss.item(), x.shape[0])
+                        val_nfe_meter.update(val_nfe)
+
+                    if val_loss_meter.avg < best_loss and epoch > 2:
+                        best_loss = val_loss_meter.avg
+                        improved = '[*]'
+                        utils.makedirs(args.save)
+                        torch.save({
+                            'args': args,
+                            'state_dict': model.state_dict(),
+                        }, os.path.join(args.save, 'cnf_hep_ckpt.pth'))
+                        n_vals_without_improvement = 0
+                    else:
+                        n_vals_without_improvement += 1
+
+                        log_message = (
+                            '[VAL] Epoch {:02d} | Val Loss {:.6f} | NFE {:.0f} | '
+                            'NoImproveEpochs {:02d}/{:02d}'.format(
+                                epoch, val_loss_meter.avg, val_nfe_meter.avg, n_vals_without_improvement, args.early_stopping
+                            )
+                        )
+                        logger.info(log_message)
+                    model.train()
+
 
     logger.info('Training has finished.')
+    model = restore_model(model, os.path.join(args.save, 'cnf_hep_ckpt.pth')).to(device)
+    set_cnf_options(args, model)
+
+    logger.info('Evaluating model on test set.')
+    model.eval()
+
+    override_divergence_fn(model, "brute_force")
 
 
-def get_data(args, logger):
-    test_loader = datasets.get_dataloaders(args.dataset,
-                               batch_size=args.batch_size,
-                               logger=logger,
-                               train=False,
-                               sampling_bias=args.sampling_bias,
-                               shuffle=args.shuffle)
+   with torch.no_grad():
+        test_loss = utils.AverageMeter()
+        test_nfe = utils.AverageMeter()
+        for itr, (data, gen_factors) in enumerate(tqdm(train_loader, desc='Train'), 0):
 
-    # all_loader = datasets.get_dataloaders(args.dataset,
-    #                             batch_size=args.batch_size,
-    #                             logger=logger,
-    #                             metrics=True,
-    #                             evaluate=True,
-    #                             train=False,
-    #                             sampling_bias=args.sampling_bias,
-    #                             shuffle=args.shuffle)
+        for itr, (x, gen_factors) in enumerate(tqdm(test_loader, desc='Test'), 0): 
+            x = cvt(x)
+            test_loss.update(compute_loss(x, model).item(), x.shape[0])
+            test_nfe.update(count_nfe(model))
 
-
-    train_loader = datasets.get_dataloaders(args.dataset,
-                                batch_size=args.batch_size,
-                                logger=logger,
-                                train=True,
-                                sampling_bias=args.sampling_bias,
-                                shuffle=args.shuffle)
-
-    return train_loader, test_loader
-
-args.n_data = len(train_loader.dataset)
+        log_message = '[TEST] Iter {:06d} | Test Loss {:.6f} | NFE {:.0f}'.format(itr, test_loss.avg, test_nfe.avg)
+        logger.info(log_message)
 
 if __name__ == '__main__':
 
     device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
     cvt = lambda x: x.type(torch.float32).to(device, non_blocking=True)
     regularization_fns, regularization_coeffs = create_regularization_fns(args)
-    model = build_model_tabular(args, 2, regularization_fns).to(device)
+
+    train_loader, test_loader = get_data(args, logger)
+    input_dim = train_loader.dataset.input_dim
+    args.dims = '-'.join([str(args.hdim_factor * data.n_dims)] * args.nhidden)
+    args.dims = '256-256-256'
+
+    model = build_model_tabular(args, input_dim, regularization_fns).to(device)
     if args.spectral_norm: add_spectral_norm(model)
     set_cnf_options(args, model)
+
+   for k in model.state_dict().keys():
+        logger.info(k)
 
     logger.info(model)
     n_gpus = torch.cuda.device_count()
     logger.info('Using {} GPUs.'.format(n_gpus))
     logger.info("Number of trainable parameters: {}".format(count_parameters(model)))
-    if n_gpus > 1:
+
+    if n_gpus > 1 and args.multigpu is True:
         print('Using {} GPUs.'.format(n_gpus))
         model = nn.DataParallel(model)
         args.multigpu = True
     else:
         args.multigpu = False
+
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-    time_meter = utils.RunningAverageMeter(0.93)
-    loss_meter = utils.RunningAverageMeter(0.93)
-    nfef_meter = utils.RunningAverageMeter(0.93)
-    nfeb_meter = utils.RunningAverageMeter(0.93)
-    tt_meter = utils.RunningAverageMeter(0.93)
+    time_meter = utils.RunningAverageMeter(0.96)
+    loss_meter = utils.RunningAverageMeter(0.96)
+    nfef_meter = utils.RunningAverageMeter(0.96)
+    nfeb_meter = utils.RunningAverageMeter(0.96)
+    tt_meter = utils.RunningAverageMeter(0.96)
 
-    train_moons_ffjord(model, optimizer, device, logger, iterations=8000)
+    train_ffjord(model, optimizer, device, logger)
