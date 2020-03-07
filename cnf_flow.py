@@ -200,7 +200,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
             if itr % args.log_freq == 0:
                 log_message = (
-                    'Epoch {:02d} | Iter {:04d} | Time {:.3f}({:.3f}) | Loss {:.3f}({:.3f}) | NFE Forward {:.0f}({:.1f})'
+                    'Epoch {} | Iter {} | Time {:.3f}({:.3f}) | Loss {:.3f}({:.3f}) | NFE Forward {:.0f}({:.1f})'
                     ' | NFE Backward {:.0f}({:.1f}) | CNF Time {:.3f}({:.3f})'.format(
                         epoch, itr, time_meter.val, time_meter.avg, loss_meter.val, loss_meter.avg, nfef_meter.val, nfef_meter.avg,
                         nfeb_meter.val, nfeb_meter.avg, tt_meter.val, tt_meter.avg
@@ -242,7 +242,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         n_vals_without_improvement += 1
 
                         log_message = (
-                            '[VAL] Epoch {:02d} | Val Loss {:.3f} | NFE {:.0f} | '
+                            '[VAL] Epoch {} | Val Loss {:.3f} | NFE {:.0f} | '
                             'NoImproveEpochs {:02d}/{:02d}'.format(
                                 epoch, val_loss_meter.avg, val_nfe_meter.avg, n_vals_without_improvement, args.early_stopping
                             )
