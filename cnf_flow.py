@@ -38,8 +38,7 @@ from utils import helpers, datasets, math, distributions
 SOLVERS = ["dopri5", "bdf", "rk4", "midpoint", 'adams', 'explicit_adams', 'fixed_adams']
 parser = argparse.ArgumentParser('Continuous Normalizing Flow')
 parser.add_argument(
-    '--data', choices=['swissroll', '8gaussians', 'pinwheel', 'circles', 'moons', '2spirals', 'checkerboard', 'rings', 'hep'],
-    type=str, default='pinwheel'
+    '--dataset', choices=['custom'], type=str, default='custom'
 )
 parser.add_argument(
     "--layer_type", type=str, default="concatsquash",
@@ -70,7 +69,7 @@ parser.add_argument('--batch_norm', type=eval, default=False, choices=[True, Fal
 parser.add_argument('--bn_lag', type=float, default=0)
 
 parser.add_argument('--early_stopping', type=int, default=16)
-parser.add_argument('--niters', type=int, default=10000)
+parser.add_argument('--n_epochs', type=int, default=32)
 parser.add_argument('--batch_size', type=int, default=1024)
 parser.add_argument('--test_batch_size', type=int, default=1024)
 parser.add_argument('--lr', type=float, default=1e-3)
@@ -111,16 +110,14 @@ def get_data(args, logger):
                                batch_size=args.batch_size,
                                logger=logger,
                                train=False,
-                               sampling_bias=args.sampling_bias,
-                               shuffle=args.shuffle)
+                               shuffle=False)
 
 
     train_loader = datasets.get_dataloaders(args.dataset,
                                 batch_size=args.batch_size,
                                 logger=logger,
                                 train=True,
-                                sampling_bias=args.sampling_bias,
-                                shuffle=args.shuffle)
+                                shuffle=True)
     args.n_data = len(train_loader.dataset)
 
     return train_loader, test_loader
@@ -139,12 +136,9 @@ def compute_loss(x, model, batch_size=None):
     if batch_size is None: batch_size = args.batch_size
 
     # load data
-    # x = toy_data.inf_train_gen(args.data, batch_size=batch_size)
-    x = sklearn.datasets.make_moons(n_samples=256, noise=.05)[0].astype(np.float32)
-    x = torch.from_numpy(x).type(torch.float32).to(device)
     zero = torch.zeros(x.shape[0], 1).to(x)
 
-    # transform to z
+    # transform to z by running model forward
     z, delta_logp = model(x, zero)
 
     # compute log q(z)
@@ -204,10 +198,10 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
             end = time.time()
 
-            if itr % args.log_freq == 0 or itr == args.niters:
+            if itr % args.log_freq == 0:
                 log_message = (
-                    'Epoch {:.02d} | Iter {:04d} | Time {:.4f}({:.4f}) | Loss {:.6f}({:.6f}) | NFE Forward {:.0f}({:.1f})'
-                    ' | NFE Backward {:.0f}({:.1f}) | CNF Time {:.4f}({:.4f})'.format(
+                    'Epoch {:02d} | Iter {:04d} | Time {:.3f}({:.3f}) | Loss {:.3f}({:.3f}) | NFE Forward {:.0f}({:.1f})'
+                    ' | NFE Backward {:.0f}({:.1f}) | CNF Time {:.3f}({:.3f})'.format(
                         epoch, itr, time_meter.val, time_meter.avg, loss_meter.val, loss_meter.avg, nfef_meter.val, nfef_meter.avg,
                         nfeb_meter.val, nfeb_meter.avg, tt_meter.val, tt_meter.avg
                     )
@@ -248,7 +242,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         n_vals_without_improvement += 1
 
                         log_message = (
-                            '[VAL] Epoch {:02d} | Val Loss {:.6f} | NFE {:.0f} | '
+                            '[VAL] Epoch {:02d} | Val Loss {:.3f} | NFE {:.0f} | '
                             'NoImproveEpochs {:02d}/{:02d}'.format(
                                 epoch, val_loss_meter.avg, val_nfe_meter.avg, n_vals_without_improvement, args.early_stopping
                             )
@@ -267,18 +261,17 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
     override_divergence_fn(model, "brute_force")
 
 
-   with torch.no_grad():
+    with torch.no_grad():
         test_loss = utils.AverageMeter()
         test_nfe = utils.AverageMeter()
-        for itr, (data, gen_factors) in enumerate(tqdm(train_loader, desc='Train'), 0):
 
         for itr, (x, gen_factors) in enumerate(tqdm(test_loader, desc='Test'), 0): 
             x = cvt(x)
             test_loss.update(compute_loss(x, model).item(), x.shape[0])
             test_nfe.update(count_nfe(model))
 
-        log_message = '[TEST] Iter {:06d} | Test Loss {:.6f} | NFE {:.0f}'.format(itr, test_loss.avg, test_nfe.avg)
-        logger.info(log_message)
+    log_message = '[TEST] Iter {:06d} | Test Loss {:.3f} | NFE {:.0f}'.format(itr, test_loss.avg, test_nfe.avg)
+    logger.info(log_message)
 
 if __name__ == '__main__':
 
@@ -288,14 +281,14 @@ if __name__ == '__main__':
 
     train_loader, test_loader = get_data(args, logger)
     input_dim = train_loader.dataset.input_dim
-    args.dims = '-'.join([str(args.hdim_factor * data.n_dims)] * args.nhidden)
+    args.dims = '-'.join([str(args.hdim_factor * input_dim)] * args.nhidden)
     args.dims = '256-256-256'
 
     model = build_model_tabular(args, input_dim, regularization_fns).to(device)
     if args.spectral_norm: add_spectral_norm(model)
     set_cnf_options(args, model)
 
-   for k in model.state_dict().keys():
+    for k in model.state_dict().keys():
         logger.info(k)
 
     logger.info(model)

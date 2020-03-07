@@ -1225,3 +1225,287 @@ Iter 4600 | Time 0.4590(0.4667) | Loss 2.498913(2.494632) | NFE Forward 14(18.1)
 [TEST] Iter 4600 | Test Loss 2.495548 | NFE 20 []
 Iter 4700 | Time 0.4574(0.4732) | Loss 2.498049(2.494440) | NFE Forward 20(18.8) | NFE Backward 21(21.1) | CNF Time 0.0000(0.0000)
 [TEST] Iter 4700 | Test Loss 2.493306 | NFE 20 []
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, data='pinwheel', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, nhidden=1, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, dataset='hep', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, nhidden=1, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, dataset='hep', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, nhidden=1, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, dataset='custom', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, nhidden=1, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, dataset='custom', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, nhidden=1, niters=10000, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+chain.0.sqrt_end_time
+chain.0.odefunc.odefunc._num_evals
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.bias
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=36, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=36, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=36, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=36, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Using 4 GPUs.
+Number of trainable parameters: 152721
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, dataset='custom', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, n_epochs=32, nhidden=1, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+chain.0.sqrt_end_time
+chain.0.odefunc.odefunc._num_evals
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.bias
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=36, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=36, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=36, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=36, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Using 4 GPUs.
+Number of trainable parameters: 152721
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, dataset='custom', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, n_epochs=32, nhidden=1, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+chain.0.sqrt_end_time
+chain.0.odefunc.odefunc._num_evals
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.bias
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=36, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=36, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=36, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=36, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Using 4 GPUs.
+Number of trainable parameters: 152721
+Epoch 00 | Iter 0000 | Time 3.2759(3.2759) | Loss 37.758087(37.758087) | NFE Forward 20(20.0) | NFE Backward 21(21.0) | CNF Time 1.0000(1.0000)
+[VAL] Epoch 00 | Val Loss 37.188291 | NFE 20 | NoImproveEpochs 01/16
+Epoch 00 | Iter 0010 | Time 2.5974(3.2231) | Loss 35.672089(37.201101) | NFE Forward 20(20.0) | NFE Backward 27(22.5) | CNF Time 1.0000(1.0000)
+Epoch 00 | Iter 0020 | Time 2.8299(3.0710) | Loss 34.791130(36.516213) | NFE Forward 26(21.5) | NFE Backward 27(24.0) | CNF Time 1.0000(1.0000)
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, dataset='custom', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, n_epochs=32, nhidden=1, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+chain.0.sqrt_end_time
+chain.0.odefunc.odefunc._num_evals
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.bias
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=36, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=36, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=36, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=36, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Using 4 GPUs.
+Number of trainable parameters: 152721
+Epoch 00 | Iter 0000 | Time 3.084(3.084) | Loss 37.604(37.604) | NFE Forward 20(20.0) | NFE Backward 21(21.0) | CNF Time 1.000(1.000)
+[VAL] Epoch 00 | Val Loss 37.147 | NFE 20 | NoImproveEpochs 01/16
