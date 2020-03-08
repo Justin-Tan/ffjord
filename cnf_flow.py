@@ -105,6 +105,21 @@ if args.layer_type == "blend":
 
 logger.info(args)
 
+def update_lr(optimizer, n_vals_without_improvement):
+    global ndecs
+    if ndecs == 0 and n_vals_without_improvement > args.early_stopping // 3:
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = args.lr / 10
+        ndecs = 1
+    elif ndecs == 1 and n_vals_without_improvement > args.early_stopping // 3 * 2:
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = args.lr / 100
+        ndecs = 2
+    else:
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = args.lr / 10**ndecs
+
+
 def get_data(args, logger):
     test_loader = datasets.get_dataloaders(args.dataset,
                                batch_size=args.batch_size,
@@ -240,15 +255,16 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         n_vals_without_improvement = 0
                     else:
                         n_vals_without_improvement += 1
+                    update_lr(optimizer, n_vals_without_improvement)
 
-                        log_message = (
-                            '[VAL] Epoch {} | Val Loss {:.3f} | NFE {:.0f} | '
-                            'NoImproveEpochs {:02d}/{:02d}'.format(
-                                epoch, val_loss_meter.avg, val_nfe_meter.avg, n_vals_without_improvement, args.early_stopping
-                            )
+                    log_message = (
+                        '[VAL] Epoch {} | Val Loss {:.3f} | NFE {:.0f} | '
+                        'NoImproveEpochs {:02d}/{:02d}'.format(
+                            epoch, val_loss_meter.avg, val_nfe_meter.avg, n_vals_without_improvement, args.early_stopping
                         )
-                        logger.info(log_message)
-                    model.train()
+                    )
+                    logger.info(log_message)
+                model.train()
 
 
     logger.info('Training has finished.')
@@ -269,7 +285,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
             test_loss.update(compute_loss(x, model).item(), x.shape[0])
             test_nfe.update(count_nfe(model))
 
-    log_message = '[TEST] Iter {:06d} | Test Loss {:.3f} | NFE {:.0f}'.format(itr, test_loss.avg, test_nfe.avg)
+    log_message = '[TEST] Iter {} | Test Loss {:.3f} | NFE {:.0f}'.format(itr, test_loss.avg, test_nfe.avg)
     logger.info(log_message)
 
 if __name__ == '__main__':
