@@ -252,14 +252,13 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
 
     logger.info('Training has finished.')
-    model = restore_model(model, os.path.join(args.save, 'cnf_hep_ckpt.pth')).to(device)
+    model = helpers.quick_restore_model(model, os.path.join(args.save, 'cnf_hep_ckpt.pth')).to(device)
     set_cnf_options(args, model)
 
     logger.info('Evaluating model on test set.')
     model.eval()
 
     override_divergence_fn(model, "brute_force")
-
 
     with torch.no_grad():
         test_loss = utils.AverageMeter()
