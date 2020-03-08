@@ -145,7 +145,7 @@ def get_regularization_loss(model, regularization_fns, regularization_coeffs):
             reg_state * coeff for reg_state, coeff in zip(reg_states, regularization_coeffs) if coeff != 0
         )
 
-    return reg_loss
+    return reg_loss, reg_states
 
 def compute_loss(x, model, batch_size=None):
     if batch_size is None: batch_size = args.batch_size
@@ -195,7 +195,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
             loss_meter.update(loss.item())
 
             if len(regularization_coeffs) > 0:
-                reg_loss = get_regularization_loss(model, regularization_fns, regularization_coeffs)
+                reg_loss, reg_states = get_regularization_loss(model, regularization_fns, regularization_coeffs)
                 loss = loss + reg_loss
 
             total_time = count_total_time(model)
