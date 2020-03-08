@@ -547,3 +547,213 @@ Epoch 1 | Iter 750 | Time 7.580(7.656) | Loss -54.489(-54.680) | NFE Forward 56(
 Epoch 1 | Iter 760 | Time 7.485(7.649) | Loss -54.856(-54.665) | NFE Forward 56(58.2) | NFE Backward 81(81.1) | CNF Time 1.000(1.000)
 [VAL] Epoch 1 | Val Loss -53.839 | NFE 56 | NoImproveEpochs 17/16
 Training has finished.
+/data/cephfs/punim0011/jtan/github/ffjord/cnf_flow.py
+Namespace(JFrobint=None, JdiagFrobint=None, JoffdiagFrobint=None, atol=1e-05, batch_norm=False, batch_size=1024, bn_lag=0, dataset='custom', dims='64-64-64', divergence_fn='brute_force', dl2int=None, early_stopping=16, evaluate=False, gpu=0, hdim_factor=10, l1int=None, l2int=None, layer_type='concatsquash', log_freq=10, lr=0.001, multigpu=False, n_epochs=32, nhidden=1, nonlinearity='tanh', num_blocks=1, rademacher=False, residual=False, resume=None, rtol=1e-05, save='experiments/cnf2', solver='dopri5', spectral_norm=False, step_size=None, test_atol=None, test_batch_size=1024, test_rtol=None, test_solver=None, time_length=1.0, train_T=True, val_freq=256, viz_freq=100, weight_decay=1e-05)
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+chain.0.sqrt_end_time
+chain.0.odefunc.odefunc._num_evals
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.0._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.1._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.2._hyper_gate.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._layer.bias
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_bias.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.weight
+chain.0.odefunc.odefunc.diffeq.layers.3._hyper_gate.bias
+SequentialFlow(
+  (chain): ModuleList(
+    (0): CNF(
+      (odefunc): RegularizedODEfunc(
+        (odefunc): ODEfunc(
+          (diffeq): ODEnet(
+            (layers): ModuleList(
+              (0): ConcatSquashLinear(
+                (_layer): Linear(in_features=36, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (1): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (2): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=256, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=256, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=256, bias=True)
+              )
+              (3): ConcatSquashLinear(
+                (_layer): Linear(in_features=256, out_features=36, bias=True)
+                (_hyper_bias): Linear(in_features=1, out_features=36, bias=False)
+                (_hyper_gate): Linear(in_features=1, out_features=36, bias=True)
+              )
+            )
+            (activation_fns): ModuleList(
+              (0): Tanh()
+              (1): Tanh()
+              (2): Tanh()
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Using 4 GPUs.
+Number of trainable parameters: 152721
+Epoch 0 | Iter 0 | Time 3.200(3.200) | Loss 37.719(37.719) | NFE Forward 20(20.0) | NFE Backward 21(21.0) | CNF Time 1.000(1.000)
+[VAL] Epoch 0 | Val Loss 37.217 | NFE 20 | NoImproveEpochs 01/16
+Epoch 0 | Iter 10 | Time 2.761(3.215) | Loss 35.618(37.163) | NFE Forward 20(20.0) | NFE Backward 27(22.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 20 | Time 2.959(3.116) | Loss 34.881(36.515) | NFE Forward 26(21.5) | NFE Backward 27(23.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 30 | Time 3.416(3.220) | Loss 33.186(35.682) | NFE Forward 26(23.0) | NFE Backward 33(26.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 40 | Time 2.989(3.204) | Loss 28.862(34.087) | NFE Forward 26(24.0) | NFE Backward 27(27.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 50 | Time 4.528(3.467) | Loss 22.448(31.144) | NFE Forward 32(26.3) | NFE Backward 45(31.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 60 | Time 5.229(3.892) | Loss 15.478(26.902) | NFE Forward 38(28.7) | NFE Backward 51(36.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 70 | Time 5.883(4.377) | Loss 10.781(21.938) | NFE Forward 44(32.1) | NFE Backward 57(41.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 80 | Time 5.654(4.795) | Loss 5.594(16.962) | NFE Forward 38(34.6) | NFE Backward 57(46.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 90 | Time 5.857(5.153) | Loss 0.725(12.183) | NFE Forward 44(37.6) | NFE Backward 57(50.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 100 | Time 6.125(5.458) | Loss -2.114(7.878) | NFE Forward 50(41.4) | NFE Backward 57(52.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 110 | Time 6.586(5.709) | Loss -4.594(4.029) | NFE Forward 50(44.1) | NFE Backward 63(54.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 120 | Time 6.554(5.909) | Loss -7.685(0.498) | NFE Forward 50(46.1) | NFE Backward 63(56.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 130 | Time 6.700(6.143) | Loss -9.728(-2.440) | NFE Forward 50(47.4) | NFE Backward 63(58.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 140 | Time 6.444(6.248) | Loss -11.418(-5.211) | NFE Forward 50(48.3) | NFE Backward 63(60.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 150 | Time 6.412(6.316) | Loss -13.640(-7.749) | NFE Forward 50(49.1) | NFE Backward 63(61.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 160 | Time 6.441(6.386) | Loss -14.524(-9.805) | NFE Forward 50(49.7) | NFE Backward 63(61.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 170 | Time 6.453(6.410) | Loss -15.997(-11.688) | NFE Forward 50(49.8) | NFE Backward 63(62.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 180 | Time 6.388(6.423) | Loss -17.073(-13.384) | NFE Forward 50(50.3) | NFE Backward 63(62.5) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 190 | Time 6.371(6.450) | Loss -17.399(-14.778) | NFE Forward 50(51.4) | NFE Backward 63(62.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 200 | Time 6.524(6.489) | Loss -19.862(-16.187) | NFE Forward 56(52.8) | NFE Backward 63(62.8) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 210 | Time 6.825(6.539) | Loss -20.747(-17.540) | NFE Forward 62(53.8) | NFE Backward 63(63.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 220 | Time 6.766(6.615) | Loss -21.147(-18.763) | NFE Forward 62(56.1) | NFE Backward 63(63.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 230 | Time 6.826(6.682) | Loss -22.367(-19.966) | NFE Forward 62(58.1) | NFE Backward 63(63.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 240 | Time 6.761(6.726) | Loss -23.790(-21.137) | NFE Forward 62(59.4) | NFE Backward 63(63.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 250 | Time 6.860(6.782) | Loss -24.088(-21.957) | NFE Forward 62(60.3) | NFE Backward 63(63.4) | CNF Time 1.000(1.000)
+[VAL] Epoch 0 | Val Loss -24.312 | NFE 62 | NoImproveEpochs 02/16
+Epoch 0 | Iter 260 | Time 6.840(7.622) | Loss -24.512(-22.815) | NFE Forward 62(60.9) | NFE Backward 63(63.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 270 | Time 6.817(7.359) | Loss -26.077(-23.585) | NFE Forward 62(61.2) | NFE Backward 63(63.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 280 | Time 7.170(7.189) | Loss -26.551(-24.414) | NFE Forward 62(61.1) | NFE Backward 69(63.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 290 | Time 6.937(7.114) | Loss -26.778(-25.111) | NFE Forward 62(61.4) | NFE Backward 63(64.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 300 | Time 7.225(7.115) | Loss -26.888(-25.551) | NFE Forward 62(61.6) | NFE Backward 69(65.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 310 | Time 6.817(7.086) | Loss -27.115(-26.038) | NFE Forward 62(61.3) | NFE Backward 63(65.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 320 | Time 7.266(7.030) | Loss -27.925(-26.674) | NFE Forward 62(61.6) | NFE Backward 69(65.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 330 | Time 7.232(7.048) | Loss -27.096(-27.275) | NFE Forward 62(61.7) | NFE Backward 69(65.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 340 | Time 7.610(7.144) | Loss -28.191(-27.704) | NFE Forward 62(61.8) | NFE Backward 75(67.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 350 | Time 7.232(7.169) | Loss -30.057(-28.301) | NFE Forward 62(61.9) | NFE Backward 69(67.8) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 360 | Time 7.211(7.190) | Loss -30.396(-28.904) | NFE Forward 62(61.9) | NFE Backward 69(68.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 370 | Time 7.577(7.230) | Loss -29.447(-29.285) | NFE Forward 62(61.9) | NFE Backward 75(68.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 380 | Time 7.234(7.230) | Loss -30.848(-29.812) | NFE Forward 62(62.0) | NFE Backward 69(68.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 390 | Time 7.222(7.260) | Loss -31.283(-30.133) | NFE Forward 62(62.0) | NFE Backward 69(69.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 400 | Time 7.232(7.249) | Loss -31.774(-30.623) | NFE Forward 62(62.0) | NFE Backward 69(69.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 410 | Time 7.253(7.244) | Loss -32.159(-30.956) | NFE Forward 62(62.0) | NFE Backward 69(69.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 420 | Time 7.277(7.252) | Loss -31.785(-31.309) | NFE Forward 62(62.0) | NFE Backward 69(69.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 430 | Time 7.214(7.244) | Loss -32.581(-31.744) | NFE Forward 62(62.0) | NFE Backward 69(69.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 440 | Time 7.164(7.285) | Loss -33.068(-32.017) | NFE Forward 62(62.0) | NFE Backward 69(69.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 450 | Time 7.211(7.258) | Loss -34.032(-32.380) | NFE Forward 62(62.0) | NFE Backward 69(69.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 460 | Time 7.203(7.283) | Loss -33.704(-32.721) | NFE Forward 62(62.0) | NFE Backward 69(70.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 470 | Time 7.232(7.278) | Loss -33.211(-32.923) | NFE Forward 62(62.0) | NFE Backward 69(69.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 480 | Time 7.196(7.286) | Loss -34.466(-33.318) | NFE Forward 62(62.0) | NFE Backward 69(70.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 490 | Time 7.573(7.309) | Loss -33.047(-33.457) | NFE Forward 62(62.0) | NFE Backward 75(70.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 500 | Time 7.210(7.317) | Loss -35.122(-33.710) | NFE Forward 62(62.0) | NFE Backward 69(70.5) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 510 | Time 7.214(7.286) | Loss -35.328(-34.132) | NFE Forward 62(62.0) | NFE Backward 69(70.0) | CNF Time 1.000(1.000)
+[VAL] Epoch 0 | Val Loss -33.874 | NFE 62 | NoImproveEpochs 03/16
+Epoch 0 | Iter 520 | Time 7.626(8.060) | Loss -34.649(-34.305) | NFE Forward 62(62.0) | NFE Backward 75(71.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 530 | Time 7.240(7.835) | Loss -34.262(-34.423) | NFE Forward 62(62.0) | NFE Backward 69(71.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 540 | Time 7.204(7.709) | Loss -34.789(-34.564) | NFE Forward 62(62.0) | NFE Backward 69(71.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 550 | Time 7.645(7.560) | Loss -35.599(-34.960) | NFE Forward 62(62.0) | NFE Backward 75(71.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 560 | Time 7.264(7.507) | Loss -36.501(-35.242) | NFE Forward 62(62.0) | NFE Backward 69(71.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 570 | Time 7.244(7.452) | Loss -36.808(-35.516) | NFE Forward 62(62.0) | NFE Backward 69(71.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 580 | Time 7.652(7.444) | Loss -36.177(-35.919) | NFE Forward 62(62.0) | NFE Backward 75(71.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 590 | Time 7.624(7.475) | Loss -36.647(-36.178) | NFE Forward 62(62.0) | NFE Backward 75(72.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 600 | Time 7.624(7.434) | Loss -36.863(-36.550) | NFE Forward 62(62.0) | NFE Backward 75(71.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 610 | Time 7.218(7.479) | Loss -37.656(-36.762) | NFE Forward 62(62.0) | NFE Backward 69(72.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 620 | Time 7.608(7.484) | Loss -37.796(-37.045) | NFE Forward 62(62.0) | NFE Backward 75(72.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 630 | Time 7.190(7.463) | Loss -38.781(-37.296) | NFE Forward 62(62.0) | NFE Backward 69(72.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 640 | Time 7.635(7.461) | Loss -38.235(-37.480) | NFE Forward 62(62.0) | NFE Backward 75(72.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 650 | Time 7.632(7.449) | Loss -38.120(-37.809) | NFE Forward 62(62.0) | NFE Backward 75(72.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 660 | Time 7.656(7.477) | Loss -37.841(-37.884) | NFE Forward 62(62.0) | NFE Backward 75(72.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 670 | Time 7.675(7.520) | Loss -37.034(-37.934) | NFE Forward 62(62.0) | NFE Backward 75(73.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 680 | Time 7.659(7.550) | Loss -38.994(-37.871) | NFE Forward 62(62.0) | NFE Backward 75(73.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 690 | Time 7.651(7.565) | Loss -38.201(-37.829) | NFE Forward 62(62.0) | NFE Backward 75(73.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 700 | Time 7.626(7.542) | Loss -38.392(-38.018) | NFE Forward 62(62.0) | NFE Backward 75(73.5) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 710 | Time 7.706(7.512) | Loss -38.597(-38.228) | NFE Forward 62(62.0) | NFE Backward 75(73.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 720 | Time 7.614(7.554) | Loss -38.287(-38.197) | NFE Forward 62(62.0) | NFE Backward 75(73.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 730 | Time 7.685(7.573) | Loss -38.349(-38.230) | NFE Forward 62(62.0) | NFE Backward 75(73.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 740 | Time 7.698(7.569) | Loss -38.651(-38.415) | NFE Forward 62(62.0) | NFE Backward 75(73.8) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 750 | Time 7.290(7.510) | Loss -39.386(-38.681) | NFE Forward 62(62.0) | NFE Backward 69(73.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 760 | Time 7.613(7.517) | Loss -37.934(-38.775) | NFE Forward 62(62.0) | NFE Backward 75(73.1) | CNF Time 1.000(1.000)
+[VAL] Epoch 0 | Val Loss -38.910 | NFE 62 | NoImproveEpochs 04/16
+Epoch 0 | Iter 770 | Time 7.669(8.443) | Loss -39.503(-38.963) | NFE Forward 62(62.0) | NFE Backward 75(73.5) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 780 | Time 7.674(8.138) | Loss -39.488(-39.153) | NFE Forward 62(62.0) | NFE Backward 75(73.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 790 | Time 7.691(7.969) | Loss -39.645(-39.123) | NFE Forward 62(62.0) | NFE Backward 75(73.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 800 | Time 7.698(7.823) | Loss -39.005(-39.245) | NFE Forward 62(62.0) | NFE Backward 75(73.5) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 810 | Time 7.572(7.749) | Loss -39.400(-39.198) | NFE Forward 62(62.0) | NFE Backward 75(73.8) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 820 | Time 7.579(7.659) | Loss -39.335(-39.356) | NFE Forward 62(62.0) | NFE Backward 75(73.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 830 | Time 7.560(7.620) | Loss -38.780(-39.453) | NFE Forward 62(62.0) | NFE Backward 75(73.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 840 | Time 7.666(7.630) | Loss -39.529(-39.430) | NFE Forward 62(62.0) | NFE Backward 75(73.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 850 | Time 7.895(7.663) | Loss -38.788(-39.191) | NFE Forward 68(62.6) | NFE Backward 75(74.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 860 | Time 7.178(7.630) | Loss -40.387(-39.431) | NFE Forward 62(62.4) | NFE Backward 69(74.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 870 | Time 7.663(7.628) | Loss -40.039(-39.547) | NFE Forward 62(62.3) | NFE Backward 75(74.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 880 | Time 7.183(7.607) | Loss -40.466(-39.694) | NFE Forward 62(62.2) | NFE Backward 69(74.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 890 | Time 7.542(7.605) | Loss -39.286(-39.861) | NFE Forward 62(62.1) | NFE Backward 75(74.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 900 | Time 7.639(7.631) | Loss -40.247(-39.986) | NFE Forward 62(62.1) | NFE Backward 75(74.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 910 | Time 8.033(7.698) | Loss -40.045(-39.956) | NFE Forward 62(62.6) | NFE Backward 81(75.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 920 | Time 7.640(7.641) | Loss -40.377(-40.073) | NFE Forward 62(62.2) | NFE Backward 75(74.8) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 930 | Time 7.565(7.624) | Loss -40.840(-40.167) | NFE Forward 62(62.3) | NFE Backward 75(74.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 940 | Time 7.136(7.614) | Loss -41.388(-40.302) | NFE Forward 62(62.2) | NFE Backward 69(74.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 950 | Time 7.775(7.660) | Loss -38.838(-40.124) | NFE Forward 68(63.0) | NFE Backward 75(74.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 960 | Time 7.668(7.680) | Loss -40.341(-40.150) | NFE Forward 62(63.4) | NFE Backward 75(74.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 970 | Time 7.594(7.627) | Loss -41.482(-40.451) | NFE Forward 62(63.1) | NFE Backward 75(74.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 980 | Time 7.639(7.589) | Loss -41.415(-40.557) | NFE Forward 62(62.5) | NFE Backward 75(74.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 990 | Time 7.652(7.646) | Loss -40.242(-40.414) | NFE Forward 62(63.2) | NFE Backward 75(74.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1000 | Time 7.687(7.722) | Loss -40.167(-40.182) | NFE Forward 62(64.1) | NFE Backward 75(75.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1010 | Time 7.637(7.707) | Loss -41.009(-40.240) | NFE Forward 62(63.8) | NFE Backward 75(75.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1020 | Time 7.215(7.663) | Loss -41.054(-40.461) | NFE Forward 62(63.6) | NFE Backward 69(74.6) | CNF Time 1.000(1.000)
+[VAL] Epoch 0 | Val Loss -40.670 | NFE 67 | NoImproveEpochs 05/16
+Epoch 0 | Iter 1030 | Time 7.676(8.490) | Loss -41.102(-40.743) | NFE Forward 62(63.0) | NFE Backward 75(74.8) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1040 | Time 7.734(8.307) | Loss -40.865(-40.821) | NFE Forward 62(63.5) | NFE Backward 75(75.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1050 | Time 7.834(8.182) | Loss -40.386(-40.891) | NFE Forward 68(64.2) | NFE Backward 75(76.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1060 | Time 7.594(8.062) | Loss -41.450(-40.994) | NFE Forward 62(64.5) | NFE Backward 75(76.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1070 | Time 8.080(7.994) | Loss -41.303(-41.084) | NFE Forward 62(64.4) | NFE Backward 81(76.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1080 | Time 8.293(8.016) | Loss -41.129(-41.127) | NFE Forward 68(65.0) | NFE Backward 81(77.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1090 | Time 8.029(8.031) | Loss -41.145(-41.008) | NFE Forward 62(65.8) | NFE Backward 81(77.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1100 | Time 8.371(8.035) | Loss -42.157(-41.173) | NFE Forward 68(65.8) | NFE Backward 81(78.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1110 | Time 7.630(8.033) | Loss -41.697(-41.159) | NFE Forward 62(66.0) | NFE Backward 75(78.1) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1120 | Time 7.264(7.944) | Loss -41.335(-41.282) | NFE Forward 62(65.2) | NFE Backward 69(77.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1130 | Time 8.007(7.980) | Loss -42.070(-41.177) | NFE Forward 62(65.9) | NFE Backward 81(77.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1140 | Time 7.650(7.887) | Loss -41.833(-41.334) | NFE Forward 62(65.3) | NFE Backward 75(76.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1150 | Time 8.100(7.869) | Loss -42.004(-41.527) | NFE Forward 62(64.8) | NFE Backward 81(76.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1160 | Time 8.123(7.855) | Loss -43.069(-41.724) | NFE Forward 62(64.4) | NFE Backward 81(76.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1170 | Time 8.241(7.940) | Loss -42.228(-41.804) | NFE Forward 68(65.1) | NFE Backward 81(77.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1180 | Time 8.296(8.009) | Loss -41.904(-41.618) | NFE Forward 68(65.9) | NFE Backward 81(78.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1190 | Time 7.199(8.032) | Loss -42.341(-41.813) | NFE Forward 62(65.9) | NFE Backward 69(78.5) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1200 | Time 7.882(8.027) | Loss -42.286(-42.005) | NFE Forward 68(65.8) | NFE Backward 75(78.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1210 | Time 8.290(8.065) | Loss -41.549(-42.054) | NFE Forward 68(66.3) | NFE Backward 81(78.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1220 | Time 8.274(8.139) | Loss -41.946(-42.020) | NFE Forward 68(66.9) | NFE Backward 81(79.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1230 | Time 7.781(8.131) | Loss -42.337(-42.127) | NFE Forward 68(66.9) | NFE Backward 75(79.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1240 | Time 8.250(8.150) | Loss -42.624(-42.296) | NFE Forward 68(67.1) | NFE Backward 81(79.6) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1250 | Time 8.314(8.150) | Loss -41.920(-42.307) | NFE Forward 68(67.2) | NFE Backward 81(79.5) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1260 | Time 8.279(8.111) | Loss -42.519(-42.389) | NFE Forward 68(66.9) | NFE Backward 81(79.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1270 | Time 8.260(8.125) | Loss -41.932(-42.358) | NFE Forward 68(66.9) | NFE Backward 81(79.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1280 | Time 8.313(8.151) | Loss -41.711(-42.378) | NFE Forward 68(67.1) | NFE Backward 81(79.7) | CNF Time 1.000(1.000)
+[VAL] Epoch 0 | Val Loss -41.741 | NFE 68 | NoImproveEpochs 06/16
+Epoch 0 | Iter 1290 | Time 8.336(8.880) | Loss -42.973(-42.487) | NFE Forward 68(67.4) | NFE Backward 81(79.7) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1300 | Time 8.340(8.631) | Loss -41.336(-42.183) | NFE Forward 68(67.6) | NFE Backward 81(79.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1310 | Time 8.330(8.478) | Loss -42.212(-42.146) | NFE Forward 68(67.7) | NFE Backward 81(79.3) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1320 | Time 7.864(8.338) | Loss -42.509(-42.286) | NFE Forward 68(67.4) | NFE Backward 75(79.0) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1330 | Time 8.316(8.220) | Loss -42.526(-42.551) | NFE Forward 68(66.4) | NFE Backward 81(78.9) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1340 | Time 8.307(8.111) | Loss -43.028(-42.795) | NFE Forward 68(65.8) | NFE Backward 81(78.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1350 | Time 8.313(8.167) | Loss -43.306(-42.919) | NFE Forward 68(66.5) | NFE Backward 81(79.2) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 1360 | Time 8.279(8.207) | Loss -42.147(-42.750) | NFE Forward 68(67.0) | NFE Backward 81(79.8) | CNF Time 1.000(1.000)

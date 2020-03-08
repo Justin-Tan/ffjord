@@ -70,8 +70,8 @@ parser.add_argument('--bn_lag', type=float, default=0)
 
 parser.add_argument('--early_stopping', type=int, default=16)
 parser.add_argument('--n_epochs', type=int, default=32)
-parser.add_argument('--batch_size', type=int, default=1024)
-parser.add_argument('--test_batch_size', type=int, default=1024)
+parser.add_argument('--batch_size', type=int, default=512)
+parser.add_argument('--test_batch_size', type=int, default=512)
 parser.add_argument('--lr', type=float, default=1e-3)
 parser.add_argument('--weight_decay', type=float, default=1e-5)
 
@@ -104,6 +104,7 @@ if args.layer_type == "blend":
     args.train_T = False
 
 logger.info(args)
+ndecs = 0
 
 def update_lr(optimizer, n_vals_without_improvement):
     global ndecs
