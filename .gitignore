@@ -8,9 +8,11 @@ __pycache__/
 *.h5
 *.hdf
 *.pt
+*.pth
 **/*.h5
 **/*.hdf
 **/*.pt
+**/*.pth
 graphs/
 results/
 
