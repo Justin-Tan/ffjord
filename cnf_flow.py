@@ -106,6 +106,22 @@ if args.layer_type == "blend":
 logger.info(args)
 ndecs = 0
 
+def get_transforms(model):
+
+    def sample_fn(z, logpz=None):
+        if logpz is not None:
+            return model(z, logpz, reverse=True)
+        else:
+            return model(z, reverse=True)
+
+    def density_fn(x, logpx=None):
+        if logpx is not None:
+            return model(x, logpx, reverse=False)
+        else:
+            return model(x, reverse=False)
+
+    return sample_fn, density_fn
+
 def update_lr(optimizer, n_vals_without_improvement, logger):
     global ndecs
     print('Cycles without improvement:', n_vals_without_improvement)
