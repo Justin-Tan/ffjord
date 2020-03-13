@@ -136,9 +136,10 @@ def update_lr(optimizer, n_vals_without_improvement, logger):
         ndecs = 2
         logger.info('REDUCING LEARNING RATE TO {}'.format(args.lr/16))
     else:
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = args.lr / 4**ndecs
-        logger.info('REDUCING LEARNING RATE TO {}'.format(args.lr/(4**ndecs)))
+        if ndecs > 0:
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = args.lr / 4**ndecs
+            logger.info('REDUCING LEARNING RATE TO {}'.format(args.lr/(4**ndecs)))
 
 
 def get_data(args, logger):
