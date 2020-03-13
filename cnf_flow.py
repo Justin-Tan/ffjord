@@ -172,6 +172,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
     end = time.time()
     best_loss = float('inf')
+    val_itr = 0
     n_vals_without_improvement = 0
     model.train()
 
@@ -234,6 +235,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
             end = time.time()
 
+
             if itr % args.val_freq == 0:
                 improved = '[]'
                 model.eval()
@@ -242,7 +244,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                     val_loss_meter = utils.AverageMeter()
                     val_nfe_meter = utils.AverageMeter()
 
-                    for (x, gen_factors) in tqdm(itertools.islice(test_loader, 0, 10), desc='val'):
+                    for (x, gen_factors) in tqdm(itertools.islice(test_loader, 10*val_itr, 10*(val_itr+1)), desc='val'):
                         x = cvt(x)
                         val_loss = compute_loss(x, model)
                         val_nfe = count_nfe(model)
@@ -269,6 +271,11 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         )
                     )
                     logger.info(log_message)
+                    val_itr += 1
+
+                    if (val_itr+1)*10 > len(test_loader):
+                        val_itr = 0
+
                 model.train()
 
 
