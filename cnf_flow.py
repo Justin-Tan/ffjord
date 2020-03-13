@@ -108,20 +108,21 @@ ndecs = 0
 
 def update_lr(optimizer, n_vals_without_improvement, logger):
     global ndecs
+    print('Cycles without improvement:', n_vals_without_improvement)
     if ndecs == 0 and n_vals_without_improvement > args.early_stopping // 3:
         for param_group in optimizer.param_groups:
             param_group["lr"] = args.lr / 4
         ndecs = 1
-        logger.info('REDUCING LEARNING RATE BY {}'.format(args.lr/4))
+        logger.info('REDUCING LEARNING RATE TO {}'.format(args.lr/4))
     elif ndecs == 1 and n_vals_without_improvement > args.early_stopping // 3 * 2:
         for param_group in optimizer.param_groups:
             param_group["lr"] = args.lr / 16
         ndecs = 2
-        logger.info('REDUCING LEARNING RATE BY {}'.format(args.lr/16))
+        logger.info('REDUCING LEARNING RATE TO {}'.format(args.lr/16))
     else:
         for param_group in optimizer.param_groups:
             param_group["lr"] = args.lr / 4**ndecs
-        logger.info('REDUCING LEARNING RATE BY {}'.format(args.lr/(4**ndecs)))
+        logger.info('REDUCING LEARNING RATE TO {}'.format(args.lr/(4**ndecs)))
 
 
 def get_data(args, logger):
@@ -243,6 +244,8 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                 with torch.no_grad():
                     val_loss_meter = utils.AverageMeter()
                     val_nfe_meter = utils.AverageMeter()
+                    
+                    sample_fn, density_fn = get_transforms(model)
 
                     for (x, gen_factors) in tqdm(itertools.islice(test_loader, 10*val_itr, 10*(val_itr+1)), desc='val'):
                         x = cvt(x)
