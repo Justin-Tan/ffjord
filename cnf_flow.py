@@ -319,9 +319,6 @@ if __name__ == '__main__':
     if n_gpus > 1 and args.multigpu is True:
         print('Using {} GPUs.'.format(n_gpus))
         model = nn.DataParallel(model)
-        args.multigpu = True
-    else:
-        args.multigpu = False
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
