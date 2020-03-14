@@ -1115,3 +1115,4 @@ Epoch 0 | Iter 160 | Time 6.509(6.382) | Loss -14.261(-9.524) | NFE Forward 50(4
 Epoch 0 | Iter 170 | Time 6.467(6.474) | Loss -16.208(-11.392) | NFE Forward 50(50.3) | NFE Backward 63(61.6) | CNF Time 1.000(1.000)
 Epoch 0 | Iter 180 | Time 6.495(6.471) | Loss -17.571(-13.205) | NFE Forward 50(50.4) | NFE Backward 63(62.1) | CNF Time 1.000(1.000)
 Epoch 0 | Iter 190 | Time 6.450(6.460) | Loss -19.891(-15.028) | NFE Forward 50(50.2) | NFE Backward 63(62.4) | CNF Time 1.000(1.000)
+Epoch 0 | Iter 200 | Time 6.740(6.596) | Loss -19.915(-16.474) | NFE Forward 56(52.1) | NFE Backward 63(63.3) | CNF Time 1.000(1.000)
