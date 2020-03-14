@@ -108,6 +108,31 @@ def plt_samples(samples, ax, npts=100, title="$x ~ p(x)$"):
     ax.get_yaxis().set_ticks([])
     ax.set_title(title)
 
+def compare_histograms_overlay(itr, data_gen, data_real, save_dir, nbins=50, norm=True, name='plot'):
+    # Plot continuum suppression variable distributions for signal, background
+    sea_green = '#54ff9f'
+    steel_blue = '#4e6bbd'
+
+    sns.distplot(data_gen, color=steel_blue, hist=True, kde=False, norm_hist=norm, label='Generated', bins=nbins,
+         hist_kws=dict(edgecolor="0.85", linewidth=0.5, alpha=0.65))
+
+    sns.distplot(data_real, color=sea_green, hist=True, kde=False, norm_hist=norm, label='Real', bins=nbins,
+         hist_kws=dict(edgecolor="0.85", linewidth=0.5, alpha=0.8))
+        
+    plt.autoscale(enable=True, axis='x', tight=False)
+    
+    if norm:
+        plt.ylabel(r'Normalized events/bin')
+    else:
+        plt.ylabel(r'Events/bin')
+
+    plt.legend(loc="best")
+    fig_filename = os.path.join(args.save, 'figs', '{}_{:04d}.pdf'.format(name, itr))
+    utils.makedirs(os.path.dirname(fig_filename))
+    plt.savefig(fig_filename, bbox_inches='tight', format='pdf', dpi=64)
+    # plt.savefig('graphs/{}_{}.pdf'.format(name,variable), bbox_inches='tight',format='pdf', dpi=1000)
+    plt.show()
+    plt.gcf().clear()
 
 def visualize_transform(
     potential_or_samples, prior_sample, prior_density, transform=None, inverse_transform=None, samples=True, npts=100,
