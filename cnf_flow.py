@@ -44,18 +44,18 @@ parser.add_argument(
     "--layer_type", type=str, default="concatsquash",
     choices=["ignore", "concat", "concat_v2", "squash", "concatsquash", "concatcoord", "hyper", "blend"]
 )
-parser.add_argument('--dims', type=str, default='64-64-64')
+parser.add_argument('--dims', type=str, default='256-256-256')
 parser.add_argument('--hdim_factor', type=int, default=10, help='Multiplying factor between data, hidden dim.')
 parser.add_argument('--nhidden', type=int, default=1, help='Number of hidden layers defining network dynamics.')
 parser.add_argument("--num_blocks", type=int, default=1, help='Number of stacked CNFs (flow steps).')
 parser.add_argument('--time_length', type=float, default=1.0)
 parser.add_argument('--train_T', type=eval, default=True)
-parser.add_argument("--divergence_fn", type=str, default="brute_force", choices=["brute_force", "approximate"])
-parser.add_argument("--nonlinearity", type=str, default="tanh", choices=odefunc.NONLINEARITIES)
+parser.add_argument("--divergence_fn", type=str, default="approximate", choices=["brute_force", "approximate"])
+parser.add_argument("--nonlinearity", type=str, default="softplus", choices=odefunc.NONLINEARITIES)
 
 parser.add_argument('--solver', type=str, default='dopri5', choices=SOLVERS)
-parser.add_argument('--atol', type=float, default=1e-5)
-parser.add_argument('--rtol', type=float, default=1e-5)
+parser.add_argument('--atol', type=float, default=1e-8)
+parser.add_argument('--rtol', type=float, default=1e-6)
 parser.add_argument("--step_size", type=float, default=None, help="Optional fixed step size.")
 
 parser.add_argument('--test_solver', type=str, default=None, choices=SOLVERS + [None])
@@ -70,8 +70,8 @@ parser.add_argument('--bn_lag', type=float, default=0)
 
 parser.add_argument('--early_stopping', type=int, default=16)
 parser.add_argument('--n_epochs', type=int, default=32)
-parser.add_argument('--batch_size', type=int, default=512)
-parser.add_argument('--test_batch_size', type=int, default=512)
+parser.add_argument('--batch_size', type=int, default=2048)
+parser.add_argument('--test_batch_size', type=int, default=2048)
 parser.add_argument('--lr', type=float, default=1e-3)
 parser.add_argument('--weight_decay', type=float, default=1e-5)
 
