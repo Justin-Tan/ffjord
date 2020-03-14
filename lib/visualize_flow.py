@@ -1,8 +1,11 @@
+import os
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import seaborn as sns
 import torch
+from lib import utils
 
 LOW = -4
 HIGH = 4
@@ -127,11 +130,11 @@ def compare_histograms_overlay(itr, data_gen, data_real, save_dir, nbins=50, nor
         plt.ylabel(r'Events/bin')
 
     plt.legend(loc="best")
-    fig_filename = os.path.join(args.save, 'figs', '{}_{:04d}.pdf'.format(name, itr))
+    fig_filename = os.path.join(save_dir, 'figs', '{}_itr_{:04d}.pdf'.format(name, itr))
     utils.makedirs(os.path.dirname(fig_filename))
+    plt.show()
     plt.savefig(fig_filename, bbox_inches='tight', format='pdf', dpi=64)
     # plt.savefig('graphs/{}_{}.pdf'.format(name,variable), bbox_inches='tight',format='pdf', dpi=1000)
-    plt.show()
     plt.gcf().clear()
 
 def visualize_transform(

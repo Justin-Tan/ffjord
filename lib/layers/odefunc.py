@@ -285,7 +285,8 @@ class ODEfunc(nn.Module):
         self._num_evals += 1
 
         # convert to tensor
-        t = torch.tensor(t).type_as(y)
+        # t = torch.tensor(t).type_as(y)
+        t = t.clone().detach().requires_grad_(True)
         batchsize = y.shape[0]
 
         # Sample and fix the noise.

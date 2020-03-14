@@ -20,7 +20,7 @@ from tqdm import tqdm, trange, tqdm_notebook
 # ffjord lib
 import lib.toy_data as toy_data
 import lib.utils as utils
-from lib.visualize_flow import visualize_transform
+from lib.visualize_flow import visualize_transform, compare_histograms_overlay
 import lib.layers.odefunc as odefunc
 
 from train_misc import standard_normal_logprob
@@ -29,7 +29,7 @@ from train_misc import add_spectral_norm, spectral_norm_power_iteration
 from train_misc import create_regularization_fns, get_regularization, append_regularization_to_log
 from train_misc import build_model_tabular, override_divergence_fn
 
-from diagnostics.viz_toy import save_trajectory, trajectory_to_video, compare_histograms_overlay
+from diagnostics.viz_toy import save_trajectory, trajectory_to_video
 
 # vae lib
 from models import losses, network, vae
@@ -87,7 +87,7 @@ parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--save', type=str, default='experiments/cnf')
 parser.add_argument('--evaluate', action='store_true')
 parser.add_argument('--viz_freq', type=int, default=100)
-parser.add_argument('--val_freq', type=int, default=256)
+parser.add_argument('--val_freq', type=int, default=250)
 parser.add_argument('--log_freq', type=int, default=10)
 parser.add_argument('--gpu', type=int, default=0)
 parser.add_argument('--multigpu', action='store_true')
@@ -274,15 +274,16 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         val_nfe_meter.update(val_nfe)
 
                     # Visualization
-                    val_x = torch.cat(val_x, axis=0).cpu().numpy()
-                    val_z = cvt(torch.randn(val_x.shape))
+                    if itr > 500:
+                        val_x = torch.cat(val_x, axis=0).cpu().numpy()
+                        val_z = cvt(torch.randn(val_x.shape))
 
-                    # Transform base distribution to x by running model backward
-                    val_sample = sample_fn(val_z)
-                    val_sample = val_sample.cpu().numpy()
-                    for i in range(val_sample.shape[1]):
-                        compare_histograms_overlay(itr=itr, data_gen=val_sample[:,1],
-                            data_real=val_x[:,i], save_dir=args.save)
+                        # Transform base distribution to x by running model backward
+                        val_sample = sample_fn(val_z)
+                        val_sample = val_sample.cpu().numpy()
+                        for i in range(val_sample.shape[1]):
+                            compare_histograms_overlay(itr=itr, data_gen=val_sample[:,i],
+                                data_real=val_x[:,i], save_dir=args.save, name='cnf_{}'.format(i))
 
                     if val_loss_meter.avg < best_loss:
                         best_loss = val_loss_meter.avg

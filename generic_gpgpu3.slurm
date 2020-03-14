@@ -13,4 +13,4 @@
 # module load Tensorflow/1.12.0-intel-2017.u2-GCC-6.2.0-CUDA9-Python-3.6.4-GPU
 module load Tensorflow/1.13.1-intel-2017.u2-GCC-6.2.0-CUDA10-Python-3.6.4-GPU
 
-python3 cnf_flow.py --save experiments/cnf2
+python3 cnf_flow.py --save experiments/cnf3
