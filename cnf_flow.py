@@ -29,7 +29,7 @@ from train_misc import add_spectral_norm, spectral_norm_power_iteration
 from train_misc import create_regularization_fns, get_regularization, append_regularization_to_log
 from train_misc import build_model_tabular, override_divergence_fn
 
-from diagnostics.viz_toy import save_trajectory, trajectory_to_video
+from diagnostics.viz_toy import save_trajectory, trajectory_to_video, compare_histograms_overlay
 
 # vae lib
 from models import losses, network, vae
@@ -275,7 +275,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
                     # Visualization
                     val_x = torch.cat(val_x, axis=0).cpu().numpy()
-                    val_z = torch.randn(val_x.shape)
+                    val_z = cvt(torch.randn(val_x.shape))
 
                     # Transform base distribution to x by running model backward
                     val_sample = sample_fn(val_z)
