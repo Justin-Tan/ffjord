@@ -258,6 +258,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                 improved = '[]'
                 model.eval()
                 start_time = time.time()
+                val_x = list()
                 with torch.no_grad():
                     val_loss_meter = utils.AverageMeter()
                     val_nfe_meter = utils.AverageMeter()
@@ -266,10 +267,22 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
                     for (x, gen_factors) in tqdm(itertools.islice(test_loader, 10*val_itr, 10*(val_itr+1)), desc='val'):
                         x = cvt(x)
+                        val_x.append(x)
                         val_loss = compute_loss(x, model)
                         val_nfe = count_nfe(model)
                         val_loss_meter.update(val_loss.item(), x.shape[0])
                         val_nfe_meter.update(val_nfe)
+
+                    # Visualization
+                    val_x = torch.cat(val_x, axis=0).cpu().numpy()
+                    val_z = torch.randn(val_x.shape)
+
+                    # Transform base distribution to x by running model backward
+                    val_sample = sample_fn(val_z)
+                    val_sample = val_sample.cpu().numpy()
+                    for i in range(val_sample.shape[1]):
+                        compare_histograms_overlay(itr=itr, data_gen=val_sample[:,1],
+                            data_real=val_x[:,i], save_dir=args.save)
 
                     if val_loss_meter.avg < best_loss:
                         best_loss = val_loss_meter.avg
@@ -286,8 +299,9 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
                     log_message = (
                         '[VAL] Epoch {} | Val Loss {:.3f} | NFE {:.0f} | '
-                        'NoImproveEpochs {:02d}/{:02d}'.format(
-                            epoch, val_loss_meter.avg, val_nfe_meter.avg, n_vals_without_improvement, args.early_stopping
+                        'NoImproveEpochs {:02d}/{:02d} {}'.format(
+                            epoch, val_loss_meter.avg, val_nfe_meter.avg, n_vals_without_improvement, 
+                            args.early_stopping, improved
                         )
                     )
                     logger.info(log_message)
