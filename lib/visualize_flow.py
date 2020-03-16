@@ -111,7 +111,7 @@ def plt_samples(samples, ax, npts=100, title="$x ~ p(x)$"):
     ax.get_yaxis().set_ticks([])
     ax.set_title(title)
 
-def compare_histograms_overlay(itr, data_gen, data_real, save_dir, nbins=50, norm=True, name='plot'):
+def compare_histograms_overlay(epoch, itr, data_gen, data_real, save_dir, nbins=50, norm=True, name='plot'):
     # Plot continuum suppression variable distributions for signal, background
     sea_green = '#54ff9f'
     steel_blue = '#4e6bbd'
@@ -130,7 +130,7 @@ def compare_histograms_overlay(itr, data_gen, data_real, save_dir, nbins=50, nor
         plt.ylabel(r'Events/bin')
 
     plt.legend(loc="best")
-    fig_filename = os.path.join(save_dir, 'figs', '{}_itr_{:04d}.pdf'.format(name, itr))
+    fig_filename = os.path.join(save_dir, 'figs', '{}_ep_{}_itr_{:04d}.pdf'.format(name, epoch, itr))
     utils.makedirs(os.path.dirname(fig_filename))
     plt.show()
     plt.savefig(fig_filename, bbox_inches='tight', format='pdf', dpi=64)

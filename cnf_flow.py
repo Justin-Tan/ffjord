@@ -68,7 +68,7 @@ parser.add_argument('--spectral_norm', type=eval, default=False, choices=[True, 
 parser.add_argument('--batch_norm', type=eval, default=False, choices=[True, False])
 parser.add_argument('--bn_lag', type=float, default=0)
 
-parser.add_argument('--early_stopping', type=int, default=16)
+parser.add_argument('--early_stopping', type=int, default=32)
 parser.add_argument('--n_epochs', type=int, default=32)
 parser.add_argument('--batch_size', type=int, default=2048)
 parser.add_argument('--test_batch_size', type=int, default=2048)
@@ -86,14 +86,14 @@ parser.add_argument('--JoffdiagFrobint', type=float, default=None, help="int_t |
 parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--save', type=str, default='experiments/cnf')
 parser.add_argument('--evaluate', action='store_true')
-parser.add_argument('--viz_freq', type=int, default=100)
+parser.add_argument('--viz_freq', type=int, default=1000)
 parser.add_argument('--val_freq', type=int, default=250)
 parser.add_argument('--log_freq', type=int, default=10)
 parser.add_argument('--gpu', type=int, default=0)
 parser.add_argument('--multigpu', action='store_true')
 
 args = parser.parse_args()
-
+assert args.viz_freq > args.val_freq and args.viz_freq % args.val_freq == 0
 # logger
 utils.makedirs(args.save)
 logger = utils.get_logger(logpath=os.path.join(args.save, 'logs'), filepath=os.path.abspath(__file__))
@@ -274,7 +274,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         val_nfe_meter.update(val_nfe)
 
                     # Visualization
-                    if itr > 500:
+                    if (itr % args.viz_freq == 0) and (itr > 500):
                         val_x = torch.cat(val_x, axis=0).cpu().numpy()
                         val_z = cvt(torch.randn(val_x.shape))
 
@@ -282,7 +282,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         val_sample = sample_fn(val_z)
                         val_sample = val_sample.cpu().numpy()
                         for i in range(val_sample.shape[1]):
-                            compare_histograms_overlay(itr=itr, data_gen=val_sample[:,i],
+                            compare_histograms_overlay(epoch=epoch, itr=itr, data_gen=val_sample[:,i],
                                 data_real=val_x[:,i], save_dir=args.save, name='cnf_{}'.format(i))
 
                     if val_loss_meter.avg < best_loss:
@@ -344,7 +344,8 @@ if __name__ == '__main__':
     train_loader, test_loader = get_data(args, logger)
     input_dim = train_loader.dataset.input_dim
     args.dims = '-'.join([str(args.hdim_factor * input_dim)] * args.nhidden)
-    args.dims = '256-256-256'
+    # args.dims = '256-256-256'
+    # args.dims = '512-512-512'
 
     model = build_model_tabular(args, input_dim, regularization_fns).to(device)
     if args.spectral_norm: add_spectral_norm(model)
