@@ -13,5 +13,5 @@
 # module load Tensorflow/1.12.0-intel-2017.u2-GCC-6.2.0-CUDA9-Python-3.6.4-GPU
 module load Tensorflow/1.13.1-intel-2017.u2-GCC-6.2.0-CUDA10-Python-3.6.4-GPU
 
-python3 cnf_flow.py --nonlinearity softplus --divergence_fn approximate --num_blocks 4 --save experiments/cnf_approx_4b
+python3 cnf_flow.py --nonlinearity softplus --divergence_fn approximate --num_blocks 4 --batch_norm True --save experiments/cnf_approx_4b
 
