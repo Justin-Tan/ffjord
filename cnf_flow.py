@@ -88,7 +88,7 @@ parser.add_argument('--save', type=str, default='experiments/cnf')
 parser.add_argument('--evaluate', action='store_true')
 parser.add_argument('--viz_freq', type=int, default=1000)
 parser.add_argument('--val_freq', type=int, default=250)
-parser.add_argument('--log_freq', type=int, default=10)
+parser.add_argument('--log_freq', type=int, default=50)
 parser.add_argument('--gpu', type=int, default=0)
 parser.add_argument('--multigpu', action='store_true')
 

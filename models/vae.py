@@ -32,17 +32,9 @@ class VAE(nn.Module):
         """
         super(VAE, self).__init__()
         
-        try:
-            self.input_dim = args.input_dim
-        except AttributeError:
-            self.input_dim = args.im_shape
-
-        try:
-            self.hidden_dim = args.hidden_dim
-        except AttributeError:
-            self.hidden_dim = 256
-
-        self.output_dim = np.prod(self.input_dim)
+        self.input_dim = args.input_dim
+        self.hidden_dim = args.hidden_dim
+        self.output_dim = np.prod(args.input_dim)
         self.latent_spec = args.latent_spec
         self.is_discrete = ('discrete' in self.latent_spec.keys())
         self.latent_dim = self.latent_spec['continuous']
@@ -53,13 +45,10 @@ class VAE(nn.Module):
         elif args.prior == 'flow':
             self.prior = distributions.FactorialNormalizingFlow(dim=args.latent_dim, nsteps=args.flow_steps)
 
-        try:
-            if args.x_dist == 'bernoulli':
-                self.x_dist = distributions.Bernoulli()
-            elif args.x_dist == 'normal':
-                self.x_dist = distributions.Normal()
-        except AttributeError:
+        if args.x_dist == 'bernoulli':
             self.x_dist = distributions.Bernoulli()
+        elif args.x_dist == 'normal':
+            self.x_dist = distributions.Normal()
 
         if self.is_discrete:
             assert sum(self.latent_spec['discrete']) > 0, 'Must have nonzero number of discrete latent dimensions.'
@@ -69,14 +58,14 @@ class VAE(nn.Module):
             self.latent_dim += self.latent_dim_discrete  # OK, not 100% consistent
 
         if args.mlp is True:
-            assert args.dataset != 'custom', 'Custom option incompatiable with mlp option!'
+            assert args.custom is False, 'Custom option incompatiable with mlp option!'
             encoder = network.MLPEncoder
             decoder = network.MLPDecoder
         else:
             encoder = network.EncoderVAE_conv
             decoder = network.DecoderVAE_conv
 
-        if args.dataset == 'custom':
+        if args.custom is True:
             encoder = network.ToyEncoder
             decoder = network.ToyDecoder
 
@@ -185,10 +174,46 @@ class VAE(nn.Module):
         return x_stats, latent_sample, latent_stats, self.flow_output
 
 
+class VAE_ODE(VAE):
+    """ Subclass of VAE - replaces decoder with continuous normalizing flow, with
+        dynamics determined by a neural network, which is a function of z ~ q(z|x). 
+        Performs amortized variational inference; parameters of dynamics network are 
+        a function of z.
+
+        Identical encoder logic to standard VAE. Allows density estimation of 
+        data x by computing the change in log-density via numerical integration
+        by black-box ODE solver. """
+
+
+    def __init__(self, args):
+        super(VAE_ODE, self).__init__(args)
+        assert args.flow_type == 'cnf', 'Must toggle CNF option in arguments!'
+
+        dims = self.latent_dim
+        self.cnf = build_model_tabular(args, dims)
+
+
+    def forward(self, x, reverse=False):
+
+        latent_stats = self.encoder(x)
+        latent_sample = self.reparameterize(latent_stats)
+        x_stats = None
+
+        # Compute change in log-prob via numerical integration
+        zero = torch.zeros(latent_sample.shape[0], 1).to(latent_sample)
+        x, delta_logp = self.cnf(latent_sample, zero)
+
+        self.flow_output['log_det_jacobian'] = -delta_logp.view(-1)
+        self.flow_output['x_flow'] = x
+        self.flow_output['z_0'] = latent_sample
+
+        return x_stats, latent_sample, latent_stats, self.flow_output
+    
+
 class realNVP_VAE(VAE):
     """ Subclass of VAE - implements invertible normalizing flows in the decoder.
         Identical encoder logic to standard VAE. Allows density estimation of 
-        data x = T(u) by computing p(T^{-1}(x)) + log |det J_{T^{-1}}(x)|}. """
+        data x = T(u) by computing log p(T^{-1}(x)) + log |det J_{T^{-1}}(x)|}. """
 
     def __init__(self, args):
         super(realNVP_VAE, self).__init__(args)
