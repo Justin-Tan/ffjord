@@ -43,7 +43,7 @@ def get_loss_function(loss_type, args, **kwargs):
 class BaseLoss:
     
     def __init__(self, x_dist, prior, supervision=False, distribution="bernoulli", log_interval=100, annealing_steps=1e4,
-            supervision_lagrange_m=64, sensitive_latent_idx=None, use_flow=False, **kwargs):
+            supervision_lagrange_m=64, sensitive_latent_idx=None, flow_type='no_flow', **kwargs):
         self.prior = prior  # Prior over z, p(z)
         self.x_dist = x_dist  # Distribution input x, p(x|z), for non-image data
         self.distribution = distribution  # x_dist but for image data - involves certain heuristic modifications
@@ -52,7 +52,7 @@ class BaseLoss:
         self.annealing_steps = annealing_steps
         self.supervision = supervision
         self.supervision_lagrange_m = supervision_lagrange_m
-        self.use_flow = use_flow
+        self.flow_type = flow_type
 
         try:
             sensitive_latent_idx.sort()
@@ -113,7 +113,8 @@ class BetaVAE_loss(BaseLoss):
         storage = self._precall(training, storage)
 
         recon_loss = _reconstruction_loss(data, reconstruction, distribution=self.distribution,
-                x_dist=self.x_dist, x_stats=reconstruction, use_flow=self.use_flow, flow_output=flow_output)
+                x_dist=self.x_dist, x_stats=reconstruction, flow_type=self.flow, flow_output=flow_output,
+                latent_stats=latent_stats, latent_sample=latent_sample)
         kl_loss = _kl_divergence_q_prior_normal(*latent_stats)
         loss = recon_loss + self.beta * kl_loss
         
@@ -165,7 +166,8 @@ class AnnealedVAE_loss(BaseLoss):
         latent_stats_normal = latent_dist['continuous']
 
         recon_loss = _reconstruction_loss(data, reconstruction, distribution=self.distribution,
-                x_dist=self.x_dist, x_stats=reconstruction, use_flow=self.use_flow, flow_output=flow_output)
+                x_dist=self.x_dist, x_stats=reconstruction, flow_type=self.flow, flow_output=flow_output,
+                latent_stats=latent_stats, latent_sample=latent_sample)
         kl_loss_normal = _kl_divergence_q_prior_normal(*latent_stats_normal)
         C = (_linear_annealing(self.C_init, self.C_fin, self.train_steps, self.annealing_steps) 
              if training else self.C_fin)
@@ -247,8 +249,9 @@ class FactorVAE_loss(BaseLoss):
         reconstruction, latent_sample, latent_dist, flow_output = model(data_VAE)
         latent_stats = latent_dist['continuous']
 
-        recon_loss = _reconstruction_loss(data_VAE, reconstruction, distribution=self.distribution,
-                x_dist=self.x_dist, x_stats=reconstruction, use_flow=self.use_flow, flow_output=flow_output)
+        recon_loss = _reconstruction_loss(data, reconstruction, distribution=self.distribution,
+                x_dist=self.x_dist, x_stats=reconstruction, flow_type=self.flow, flow_output=flow_output,
+                latent_stats=latent_stats, latent_sample=latent_sample)
         kl_loss = _kl_divergence_q_prior_normal(*latent_stats)
         
         loss = recon_loss + kl_loss
@@ -357,7 +360,8 @@ class betaTC_VAE_loss(BaseLoss):
             generative_factors=None, flow_output=None, training=True, **kwargs):
         storage = self._precall(training, storage)
         recon_loss = _reconstruction_loss(data, reconstruction, distribution=self.distribution,
-                x_dist=self.x_dist, x_stats=reconstruction, use_flow=self.use_flow, flow_output=flow_output)
+                x_dist=self.x_dist, x_stats=reconstruction, flow_type=self.flow, flow_output=flow_output,
+                latent_stats=latent_stats, latent_sample=latent_sample)
         kl_loss, kl_loss_z = _kl_divergence_q_prior_normal(*latent_stats, per_dim=True)
 
         log_pz, log_qz, log_prod_qzi, log_q_zCx = _get_log_pz_qz_prodzi_qzCx(latent_sample, 
@@ -447,7 +451,8 @@ class betaTC_sensitive_VAE_loss(BaseLoss):
         
         storage = self._precall(training, storage)
         recon_loss = _reconstruction_loss(data, reconstruction, distribution=self.distribution,
-                x_dist=self.x_dist, x_stats=reconstruction, use_flow=self.use_flow, flow_output=flow_output)
+                x_dist=self.x_dist, x_stats=reconstruction, flow_type=self.flow, flow_output=flow_output,
+                latent_stats=latent_stats, latent_sample=latent_sample)
         kl_loss, kl_loss_z = _kl_divergence_q_prior_normal(*latent_stats, per_dim=True)
 
         elbo_terms = _get_log_pz_qz_prodzi_qzCx_isolate_sensitives(latent_sample, latent_stats, 
@@ -514,7 +519,7 @@ class betaTC_sensitive_VAE_loss(BaseLoss):
         return loss
 
 def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, distribution="bernoulli",
-        x_dist=None, x_stats=[], use_flow=False, flow_output=None, **kwargs):
+        x_dist=None, x_stats=[], flow_type='no_flow', flow_output=None, latent_sample=None, latent_stats=None):
     """
     Returns negative log likelihood under the variational posterior:
     $ - E_{q_{\phi}(z|x)}[\log p_{\theta}(x|z) $
@@ -559,7 +564,7 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
         # Assume data is of shape [batch_size, x_dim]
         batch_size, x_dim = data.shape
 
-        if use_flow is False:
+        if flow_type == 'no_flow':
             # Poor assumption: data can be modelled by diagonal-covariance Gaussian
             assert x_dist is not None, 'Must specify distribution of inputs x'
             # Have to be careful with ordering of distribution parameters when unpacking
@@ -567,13 +572,29 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
             # print(log_px)
         else:
             assert flow_output is not None, 'Must specify normalizing flow'
-            x_flow_inv, log_det_jacobian_inv = flow_output['x_flow_inv'], flow_output['log_det_jacobian_inv']
-            assert log_det_jacobian_inv is not None, 'Must supply determinant of transformation Jacobian!'
-            log_pxCz = _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv)
+            if flow_type == 'real_nvp'
+                x_flow_inv, log_det_jacobian_inv = flow_output['x_flow_inv'], flow_output['log_det_jacobian_inv']
+                assert log_det_jacobian_inv is not None, 'Must supply determinant of transformation Jacobian!'
+                log_pxCz = _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv)
+            elif flow_type == 'cnf':  # use VAE-ODE class 
+                x_flow, delta_logp = flow_output['x_flow'], flow_output['log_det_jacobian']
+                assert log_det_jacobian is not None, 'Must supply determinant of transformation Jacobian!'
+                log_pxCz = _ffjord_log_density(x_flow, delta_logp, x_stats, z0=latent_sample, latent_stats=latent_stats)
 
         loss = -log_pxCz.mean()
 
     return loss
+
+def _ffjord_log_density(x_flow, delta_logp, x_stats, z0, latent_stats):
+
+    # Compute log-prob of representation in latent space
+    log_q_zCx = log_density_gaussian(z0, *latent_stats).sum(dim=1)
+    # Consider this the base density at time 0
+    log_pz0 = log_q_zCx
+    # Compute log-prob of transformed data
+    log_px = log_pz0 - delta_logp
+
+    return log_px
 
 def _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv):
 
