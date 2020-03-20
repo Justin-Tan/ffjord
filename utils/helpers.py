@@ -97,12 +97,6 @@ def save_model_online(model, optimizer, epoch, save_dir, name):
             }, save_path)
     print('Model saved to path {}'.format(save_path))
     
-
-def quick_restore_model(model, filename):
-    checkpt = torch.load(filename, map_location=lambda storage, loc: storage)
-    model.load_state_dict(checkpt["state_dict"])
-    return model
-
 def load_model(save_path, device, optimizer=None, prediction=True):
     checkpoint = torch.load(save_path)
     args = checkpoint['args']

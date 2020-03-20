@@ -3,7 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os, glob, time, datetime
-import logging, pickle
+import logging, pickle, argparse
+
 
 from scipy import stats
 from pprint import pprint
@@ -18,7 +19,7 @@ import torchvision.transforms as transforms
 
 # Custom modules
 import mig_eval
-from default_config import args
+from default_config import args, directories
 from models import losses, network, vae
 from utils import helpers, initialization, traversals, datasets, evaluate, math, distributions
 
@@ -32,7 +33,6 @@ from train_misc import set_cnf_options, count_nfe, count_parameters, count_total
 from train_misc import add_spectral_norm, spectral_norm_power_iteration
 from train_misc import create_regularization_fns, get_regularization, append_regularization_to_log
 from train_misc import build_model_tabular, override_divergence_fn
-
 
 def test(epoch, counter, data, gen_factors, loss_function, device, model, epoch_test_loss, storage, best_test_loss, 
          start_time, epoch_start_time, log_interval_p_epoch, logger):
@@ -83,10 +83,10 @@ def train(args, model, train_loader, test_loader, device,
         prior, x_dist = model.module.prior, model.module.x_dist
         
         
-    loss_function = losses.get_loss_function(args.loss_type, args=args, log_interval=log_interval, device=device, use_flow=args.use_flow,
+    loss_function = losses.get_loss_function(args.loss_type, args=args, log_interval=log_interval, device=device, flow_type=args.flow,
                                              distribution=args.distribution, prior=prior, x_dist=x_dist, supervision=args.supervision,
                                              supervision_lagrange_m=args.supervision_lagrange_m, sensitive_latent_idx=args.sensitive_latent_idx)
-    
+
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, 
                                                            factor=0.5, verbose=True)
     
@@ -163,24 +163,29 @@ if __name__ == '__main__':
     # General options
     general = parser.add_argument_group('General options')
     general.add_argument("-n", "--name", default=args.name, help="Identifier for checkpoints and metrics.")
-    general.add_argument("-d", "--dataset", type=str, default='dsprites', help="Training dataset to use.", 
+    general.add_argument("-o", "--output_directory", default=directories.checkpoints, help="Directory to store checkpoints and logs.")
+    general.add_argument("-d", "--dataset", type=str, default='dsprites', help="Training dataset to use.",
         choices=['dsprites', 'custom', 'dsprites_scream'], required=True)
-    general.add_argument("-gpu", "--gpu_id", type=int, default=0, help="GPU ID.")
-    general.add_argument("-multigpu", "--multigpu", help="Toggle multiGPU capability", action="store_true")
- 
+    general.add_argument("-gpu", "--gpu", type=int, default=0, help="GPU ID.")
+    general.add_argument("-multigpu", "--multigpu", help="Toggle data parallel capability using torch DataParallel", action="store_true")
+    general.add_argument(
+        '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'real_nvp', 'no_flow'], 
+        help="""Type of flows to use in decoder VAE, no flows can also be selected."""
+    )
+
     # Optimization-related options
     optim = parser.add_argument_group("Optimization-related options")
-    optim.add_argument('-epochs', '--n_epochs', type=int, default=42, help="Number of passes over training dataset."
+    optim.add_argument('-epochs', '--n_epochs', type=int, default=32, help="Number of passes over training dataset.")
     optim.add_argument("-lr", "--learning_rate", type=float, default=args.learning_rate, help="Optimizer learning rate.")
     optim.add_argument("-wd", "--weight_decay", type=float, default=args.weight_decay, help="Coefficient of L2 regularization.")
 
     # Model options
     model = parser.add_argument_group("Model-related options")
     model.add_argument("-l", "--loss_type", type=str, default=args.loss_type, help="Choice of loss function.",
-        choices=['VAE, beta_VAE', 'annealed_VAE', 'factor_VAE', 'beta_TCVAE', 'beta_TCVAE_sensitive'], required=True)
+        choices=['VAE', 'beta_VAE', 'annealed_VAE', 'factor_VAE', 'beta_TCVAE', 'beta_TCVAE_sensitive'], required=True)
     model.add_argument("-z", "--latent_dim", type=int, default=args.latent_dim, help="Dimension of latent space.")
     model.add_argument("-sv", "--supervision", help="Apply supervision to VAE loss.", action="store_true")
-    model.add_argument("-lambda", "--supervision_lagrange_m", default=args.supervision_lagrange_m, 
+    model.add_argument("-lambda", "--supervision_lagrange_m", type=int, default=args.supervision_lagrange_m,
                        help="Lagrange multiplier for supervised component of loss.")
     model.add_argument("-s_idx", "--sensitive_latent_idx", type=int, nargs='+', default=args.sensitive_latent_idx,
                        help="Indices of latent dimensions corresponding to sensitive factors.")
@@ -195,40 +200,74 @@ if __name__ == '__main__':
 
     # Factor-vae options
     fvae = parser.add_argument_group("Factor-VAE-related options")
-    fvae.add_argument("-gamma_fvae", "--gamma_fvae", type=float, default=args.gamma_fvae, help="Coefficient of TC estimate for Factor-VAE.") 
+    fvae.add_argument("-gamma_fvae", "--gamma_fvae", type=float, default=args.gamma_fvae, help="Coefficient of TC estimate for Factor-VAE.")
 
     # beta-tcvae / beta-tcvae-sensitive options
     btcvae = parser.add_argument_group("BTC-VAE / BTC-VAE-Sensitive - related options")
-    btcvae.add_argument("-alpha_btcvae", "--alpha_btcvae", type=float, default=args.alpha_btcvae, help="Alpha coefficient in beta-TCVAE loss.") 
-    btcvae.add_argument("-beta_btcvae", "--beta_btcvae", type=float, default=args.beta_btcvae, help="Beta coefficient in beta-TCVAE loss.") 
-    btcvae.add_argument("-gamma_btcvae", "--gamma_btcvae", type=float, default=args.gamma_btcvae, help="Gamma coefficient in beta-TCVAE loss.") 
+    btcvae.add_argument("-alpha_btcvae", "--alpha_btcvae", type=float, default=args.alpha_btcvae, help="Alpha coefficient in beta-TCVAE loss.")
+    btcvae.add_argument("-beta_btcvae", "--beta_btcvae", type=float, default=args.beta_btcvae, help="Beta coefficient in beta-TCVAE loss.")
+    btcvae.add_argument("-gamma_btcvae", "--gamma_btcvae", type=float, default=args.gamma_btcvae, help="Gamma coefficient in beta-TCVAE loss.")
 
     # Continuous-time normalizing flow options
     cnf_args = parser.add_argument_group("CNF - related options")
-    cnf_args.add_argument("-cnf", "--cnf", help="Use normalizing flows for VAE generative portion.", action="store_true")
+    cnf_args.add_argument('--dims', type=str, default='512-512', help='Defines dynamics network architecture')
+    cnf_args.add_argument("--num_blocks", type=int, default=1, help='Number of stacked CNFs.')
+    cnf_args.add_argument('--time_length', type=float, default=0.5)
+    cnf_args.add_argument('--train_T', type=eval, default=False)
+    cnf_args.add_argument("--divergence_fn", type=str, default="approximate", choices=["brute_force", "approximate"])
+    cnf_args.add_argument("--nonlinearity", type=str, default="softplus", choices=odefunc.NONLINEARITIES)
+    cnf_args.add_argument('-r', '--rank', type=int, default=1)
+
+    SOLVERS = ["dopri5", "bdf", "rk4", "midpoint", 'adams', 'explicit_adams', 'fixed_adams']
+    cnf_args.add_argument('--solver', type=str, default='dopri5', choices=SOLVERS)
+    cnf_args.add_argument('--atol', type=float, default=1e-5)
+    cnf_args.add_argument('--rtol', type=float, default=1e-5)
+    cnf_args.add_argument("--step_size", type=float, default=None, help="Optional fixed step size.")
     cnf_args.add_argument(
-        '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'real_nvp', 'no_flow'], 
-        help="""Type of flows to use, no flows can also be selected"""
+        "--layer_type", type=str, default="concat",
+        choices=["ignore", "concat", "concat_v2", "squash", "concatsquash", "concatcoord", "hyper", "blend"]
     )
+
+    cnf_args.add_argument('--test_solver', type=str, default=None, choices=SOLVERS + [None])
+    cnf_args.add_argument('--test_atol', type=float, default=None)
+    cnf_args.add_argument('--test_rtol', type=float, default=None)
+
+    cnf_args.add_argument('--residual', type=eval, default=False, choices=[True, False])
+    cnf_args.add_argument('--rademacher', type=eval, default=False, choices=[True, False])
+    cnf_args.add_argument('--batch_norm', type=eval, default=True, choices=[True, False])
+    cnf_args.add_argument('--bn_lag', type=float, default=0)
+
+    cnf_args.add_argument('--evaluate', action='store_true')
+    cnf_args.add_argument('--model_path', type=str, default='')
+
+    parser.add_argument('--save', type=str, default='experiments/cnf')
+    parser.add_argument('--viz_freq', type=int, default=1000)
+    parser.add_argument('--val_freq', type=int, default=250)
+    parser.add_argument('--log_freq', type=int, default=50)
 
     cmd_args = parser.parse_args()
 
     if cmd_args.gpu != 0:
         torch.cuda.set_device(cmd_args.gpu)
-        
+
     start_time = time.time()
     device = helpers.get_device()
     logger = helpers.logger_setup()
 
+
     # Override default arguments with provided command line arguments
     dictify = lambda x: dict((n, getattr(x, n)) for n in dir(x) if not (n.startswith('__') or 'logger' in n))
-    args_d, cmd_args_d = dictify(args), dictify(cmd_args)
-    cmd_args_d = {k: v for k, v in cmd_args.items() if v is not None}
+    args_d, cmd_args_d = dictify(args), vars(cmd_args)
     args_d.update(cmd_args_d)
-    args = args = helpers.Struct(**args_d)
+    args = helpers.Struct(**args_d)
+    args.latent_spec['continuous'] = cmd_args.latent_dim
+    if args.output_directory not in [directories.checkpoints, 'results']:
+        args.output_directory = os.path.join('checkpoints', args.output_directory)
+    args.name = '{}_{}'.format(args.name, args.loss_type)
 
     assert args.loss_type in args.LOSSES, 'Unrecognized loss type!'
     assert args.dataset in args.DATASETS, 'Unrecognized dataset!'
+    logger.info('Using dataset: {}'.format(args.dataset))
     test_loader = datasets.get_dataloaders(args.dataset,
                                 batch_size=args.batch_size,
                                 logger=logger,
@@ -254,14 +293,20 @@ if __name__ == '__main__':
                                     sampling_bias=args.sampling_bias,
                                     shuffle=args.shuffle)
 
+        K = all_loader.dataset.n_gen_factors
+        if len(args.sensitive_latent_idx) > K:
+            args.sensitive_latent_idx = args.sensitive_latent_idx[:K]
+
     args.n_data = len(train_loader.dataset)
 
     try:
         args.input_dim = datasets.get_img_size(args.dataset)
     except AttributeError:
-        args.input_dim = datasets.get_input_dim(args.dataset)
+        args.input_dim = all_loader.dataset.input_dim
 
-    
+    if args.dataset == 'custom':
+        args.x_dist = 'normal'
+
     if args.flow == 'no_flow':
         model = vae.VAE(args)
     elif args.flow == 'real_nvp':
@@ -270,12 +315,12 @@ if __name__ == '__main__':
         model = vae.VAE_ODE(args)
 
     n_gpus = torch.cuda.device_count()
-    helpers.summary(model, input_size=[[args.input_dim]], device='cpu')
+    helpers.summary(model, input_size=[[args.input_dim]] if args.dataset=='custom' else args.input_dim, device='cpu')
 
-    if n_gpus > 1 and args.multigpu == True:
+    if n_gpus > 1 and args.multigpu is True:
         logger.info('Using {} GPUs.'.format(n_gpus))
         model = nn.DataParallel(model)
-        
+
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
@@ -284,13 +329,21 @@ if __name__ == '__main__':
     except AttributeError:
         args.latent_dim = model.module.latent_dim
 
+    metadata = dict(input_dim=args.input_dim, latent_dim=args.latent_dim,
+                    model_loss=args.loss_type)
+
+    args_d = dict((n, getattr(args, n)) for n in dir(args) if not (n.startswith('__') or 'logger' in n))
+    metadata.update(args_d)
+    print(metadata)
+
+
     """
     Train
     """
     storage = defaultdict(list)
     storage_test = defaultdict(list)
-    ckpt_path = train(args, model, train_loader, test_loader, device, optimizer, storage, storage_test, 
-        logger, log_interval_p_epoch=10)
+    ckpt_path = train(args, model, train_loader, test_loader, device, optimizer, storage, storage_test,
+        logger, log_interval_p_epoch=2)
     args.ckpt = ckpt_path
 
     """
@@ -298,8 +351,8 @@ if __name__ == '__main__':
     """
 
     if args.dataset == 'custom':
-        metrics, df_mbc, df = mig_eval.metric_custom(args, model, device, logger, train_loader=train_loader, 
-            test_loader=test_loader)
+        metrics, df_mbc, df = mig_eval.metric_custom(args, model, device, logger, train_loader=train_loader,
+            test_loader=test_loader, storage=storage_test, evaluate_with_mbc=True)
     else:
-        metric, discrete_metric, marginal_entropies, conditional_entropies, z_v_mapping = mig_eval.mutual_info_metric_shapes(args, 
-            model, torch.device('cuda:1'), logger, gpu_id=1)
+        metric, discrete_metric, marginal_entropies, conditional_entropies, z_v_mapping = mig_eval.mutual_info_metric_shapes(args,
+            model, torch.device('cuda:1'), logger, storage=storage_test, gpu_id=1)

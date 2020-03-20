@@ -19,7 +19,7 @@ class args(object):
     shuffle = True
     distribution = 'bernoulli'
     identifier = loss_type
-
+    
     # Optimizer params
     learning_rate = 5e-4
     weight_decay = 1e-4
@@ -29,28 +29,28 @@ class args(object):
     C_init = 0
     C_fin = 5
     gamma = 30.
-
+    
     # Factor VAE params
     n_layers_D = 5
     n_units_D = 512
     lr_D = 5e-5
     gamma_fvae = 12.
-
+    
     # BTCVAE / BTCVAE-sensitive params
     alpha_btcvae = 1.
     beta_btcvae = 2.
     gamma_btcvae = 1.
-
+    
     # Sensitive isolation
     supervision = True
     sensitive_latent_idx = [1,2,3,4]
     supervision_lagrange_m = 128
-
+    
     # Normalizing flow params
     use_flow = False
     flow_steps = 32
     flow_hidden_dim = 64
-
+    
     # Misc.
     prior = 'normal'
     x_dist = 'bernoulli'
@@ -67,12 +67,12 @@ if args.loss_type == 'factor_VAE':
     # Double batch size
     args.batch_size *= 2
     args.n_epochs *= 2
-
+    
 if args.supervision is True:
     args.identifier += '_supervised'
-
+    
 if args.sampling_bias is True:
     args.identifier += '_biased'
     args.shuffle = False
-
+    
 args.name = '{}_{}_{}'.format(args.dataset, args.loss_type, args.identifier)

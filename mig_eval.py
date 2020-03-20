@@ -225,7 +225,7 @@ def vae_forward_pass(vae_model, features, sample_z=False):
 
 
 def downstream_train(args, device, logger, train_loader, test_loader, net, n_epochs=8, vae_model=None, sample_z=False, 
-               index_features=False, latent_features=False, feature_idx=None, log_interval_p_epoch=2, pca=None):
+               index_features=False, latent_features=False, feature_idx=None, log_interval_p_epoch=2, pca=None, notebook=False):
 
     logger.info('Starting downstream training')
 
@@ -235,6 +235,8 @@ def downstream_train(args, device, logger, train_loader, test_loader, net, n_epo
     if vae_model is not None and latent_features is True:
         logger.info('Using latent space features')
         vae_model.train()
+    else:
+        n_epochs = 3
 
     test_loader_iter = iter(test_loader)
     start_time = time.time()
@@ -248,7 +250,12 @@ def downstream_train(args, device, logger, train_loader, test_loader, net, n_epo
 
     for epoch in trange(n_epochs, desc='Epoch'):
 
-        for step, (features, gen_factors) in enumerate(tqdm_notebook(train_loader, desc='Train'), 0):
+        if notebook is True:
+            tqdm_f = tqdm_notebook
+        else:
+            tqdm_f = tqdm
+
+        for step, (features, gen_factors) in enumerate(tqdm_f(train_loader, desc='Train'), 0):
 
             features = features.to(device, dtype=torch.float)
             gen_factors = gen_factors.to(device)
@@ -304,7 +311,8 @@ def downstream_train(args, device, logger, train_loader, test_loader, net, n_epo
 
         logger.info('Done! Time elapsed: {:.3f} s'.format(time.time()-start_time))
 
-def post_logits(dataloader, device, logger, net, vae_model, sample_z=False, index_features=False, latent_features=False, feature_idx=None, pca=None):
+def post_logits(dataloader, device, logger, net, vae_model, sample_z=False, index_features=False, latent_features=False, feature_idx=None, 
+        pca=None, notebook=False):
 
     N = len(dataloader.dataset)
 
@@ -314,9 +322,14 @@ def post_logits(dataloader, device, logger, net, vae_model, sample_z=False, inde
 
     n = 0
 
+    if notebook is True:
+        tqdm_f = tqdm_notebook
+    else:
+        tqdm_f = tqdm
+
     with torch.no_grad():
 
-        for idx, (data, gen_factors) in enumerate(tqdm_notebook(dataloader, desc='Eval'), 0):
+        for idx, (data, gen_factors) in enumerate(tqdm_f(dataloader, desc='Eval'), 0):
             batch_size = data.shape[0]
 
             data = data.to(device, dtype=torch.float)
@@ -347,22 +360,27 @@ def post_logits(dataloader, device, logger, net, vae_model, sample_z=False, inde
     return logits, gen_factors_all, latents
 
 def downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, latent_features=True, index_features=True, 
-                       sample_z=False, leave_out=[1]):
+                       sample_z=False, leave_out=[1], notebook=False, n_epochs=8):
 
+
+    logger.info('Omitting dimensions {}'.format(leave_out))
+
+    if not isinstance(leave_out, list):
+        leave_out = list(leave_out)
 
     try:
-        feature_idx = list(set(range(model.latent_dim)).difference(list(leave_out))) if index_features is True else list(range(model.latent_dim))
+        feature_idx = list(set(range(model.latent_dim)).difference(leave_out)) if index_features is True else list(range(model.latent_dim))
     except AttributeError:
-        feature_idx = list(set(range(model.module.latent_dim)).difference(list(leave_out))) if index_features is True else list(range(model.module.latent_dim))
+        feature_idx = list(set(range(model.module.latent_dim)).difference(leave_out)) if index_features is True else list(range(model.module.latent_dim))
     input_dim = len(feature_idx) if latent_features is True else args.input_dim
 
     simplenet = network.SimpleDense(input_dim=input_dim, n_classes=2, hidden_dim=256)
     simplenet.to(device)
 
     downstream_train(args, device, logger, train_loader, test_loader, simplenet, vae_model=model, index_features=index_features, feature_idx=feature_idx, 
-        sample_z=sample_z, latent_features=latent_features)
+        sample_z=sample_z, latent_features=latent_features, notebook=notebook, n_epochs=n_epochs)
     logits, gen_factors, latents = post_logits(all_loader, device, logger, simplenet, vae_model=model, index_features=index_features, 
-        latent_features=latent_features, feature_idx=feature_idx, sample_z=sample_z, pca=None)
+        latent_features=latent_features, feature_idx=feature_idx, sample_z=sample_z, pca=None, notebook=notebook)
 
     signal_probs = F.softmax(logits, dim=1).numpy()
     y_prob = signal_probs[:,1]
@@ -378,12 +396,14 @@ def downstream_metrics(args, model, device, logger, train_loader, test_loader, a
     fpr, tpr, thresholds = roc_curve(df._label, df['y_prob'])
     roc_auc = roc_auc_score(df._label, df.y_prob)
     jsd_metric_mbc = helpers.jsd_metric(df_post)
+    jsd_metric_dE = helpers.jsd_metric(df_post, variable='dE')
+    # df = df.sort_values('y_prob', ascending=False).drop_duplicates(subset=['_B_eventCached_boevtNum'], keep='first')
 
-    return jsd_metric_mbc, roc_auc, df
+    return jsd_metric_mbc, jsd_metric_dE, roc_auc, df
 
 
 def metric_custom(args, model, device, logger, gpu_id=1, sample_latents=True,
-    n_gen_factors=3, n_samples=10000, train_loader=None, test_loader=None, evaluate_with_mbc=True):
+    n_gen_factors=3, n_samples=10000, train_loader=None, test_loader=None, storage=None, evaluate_with_mbc=True, notebook=False):
     """
     Compute MIG and downstream metrics on custom dataset.
     """  
@@ -439,7 +459,7 @@ def metric_custom(args, model, device, logger, gpu_id=1, sample_latents=True,
         qzCx_samples = qzCx_params.select(-1,0)
         
     logger.info('Estimating discrete MIG.')
-    discrete_metric, top_mi_discrete_normed, top_mi_idx_discrete = estimate_MIG_discrete_custom(qzCx_samples.view(N,K).data.cpu(), gen_factors, n_samples=10000, multidim=False)
+    discrete_metric, top_mi_discrete_normed, top_mi_idx_discrete = estimate_MIG_discrete_custom(qzCx_samples.view(N,K).data.cpu(), gen_factors, n_samples=10000, multidim=bool(len(args.sensitive_latent_idx) > 1))
     logger.info('MIG (discrete): {:.3f} | Time elapsed: {:.2f}s'.format(discrete_metric, time.time() - start_time))
     
     
@@ -466,25 +486,34 @@ def metric_custom(args, model, device, logger, gpu_id=1, sample_latents=True,
     
     # With Mbc dimension. 
     if evaluate_with_mbc is True:
-        jsd_mbc, auc_mbc, df_mbc = downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, index_features=False)
+        jsd_mbc, jsd_dE, auc_mbc, df_mbc = downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, index_features=False, notebook=notebook, n_epochs=4)
+    else:
+        jsd_mbc, jsd_dE_mbc, auc_mbc = None, None, None
     
     # Omit Mbc dimension. Supervised: constrained dimension. Unsupervised: Dimension with highest MI w/ Mbc.
-    omit_idx = int(top_mi_idx_discrete)
-    logger.info('Omitting latent dimension {}'.format(str(omit_idx)))
-    jsd, auc, df = downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, index_features=True, leave_out=[omit_idx])
+    if args.supervision is False:
+        omit_idx = int(top_mi_idx_discrete)
+        logger.info('Omitting latent dimension {}'.format(str(omit_idx)))
+    else:
+        omit_idx = args.sensitive_latent_idx
+    jsd, jsd_dE, auc, df = downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, index_features=True, leave_out=omit_idx, notebook=notebook)
 
     
     args_d = dict((n, getattr(args, n)) for n in dir(args) if not (n.startswith('__') or 'logger' in n))
     args_d.pop('DATASETS'); args_d.pop('LOSSES')
-    metrics_out = {'MIG_discrete': discrete_metric, 'JSD_metric_incomplete': jsd, 'AUC_incomplete': auc, 'JSD_metric_complete': jsd_mbc, 
-                   'AUC_complete': auc_mbc, 'args': args_d, 'ckpt': args.ckpt}
+    metrics_out = {'MIG_discrete': discrete_metric, 'JSD_metric_incomplete': jsd, 'JSD_metric_dE_incomplete': jsd_dE, 'AUC_incomplete': auc, 'JSD_metric_complete': jsd_mbc, 
+            'JSD_metric_dE_complete': jsd_dE_mbc, 'AUC_complete': auc_mbc, 'args': args_d, 'ckpt': args.ckpt, 'storage': storage}
 
     save_path = 'disentanglement_metric_custom_{}_{:%Y_%m_%d_%H:%M}.log'.format(args.name, datetime.datetime.now())
     # df_mbc.to_hdf(save_path.replace('.log', '.hdf'), key='df')
     df.to_hdf(os.path.join('results', save_path.replace('.log', '.hdf')), key='df')
     logger.info('Saving to {}'.format(save_path))
-    print(metrics_out)
-    helpers.save_metadata(metrics_out, 'results', filename=save_path)
+    logger.info(metrics_out)
+
+    try:
+        helpers.save_metadata(metrics_out, args.output_directory, filename=save_path)
+    except AttributeError:
+        helpers.save_metadata(metrics_out, 'results', filename=save_path)
     
     if evaluate_with_mbc is True:
         return metrics_out, df_mbc, df
@@ -526,7 +555,7 @@ def match_z_v(marginal_entropies, conditional_entropies, top_mi_discrete_normed,
     return z_v_mapping
 
 
-def mutual_info_metric_shapes(args, model, device, logger, gpu_id=1, sample_latents=True,
+def mutual_info_metric_shapes(args, model, device, logger, storage=None, gpu_id=1, sample_latents=True,
         n_gen_factors=5, n_samples=10000):
 
     """
@@ -664,11 +693,15 @@ def mutual_info_metric_shapes(args, model, device, logger, gpu_id=1, sample_late
     z_v_mapping = match_z_v(marginal_entropies, cond_entropies, top_mi_discrete_normed, top_mi_discrete_idx)
 
     args_d = dict((n, getattr(args, n)) for n in dir(args) if not (n.startswith('__') or 'logger' in n))
-    metrics_out = {'MIG': metric.item(), 'MIG_discrete': discrete_metric, 'args': args_d, 'ckpt': args.ckpt, 'z_v_mapping': z_v_mapping}
+    metrics_out = {'MIG': metric.item(), 'MIG_discrete': discrete_metric, 'args': args_d, 'ckpt': args.ckpt, 'z_v_mapping': z_v_mapping, 'storage': storage}
     save_path = 'disentanglement_metric_{}_{:%Y_%m_%d_%H:%M}.log'.format(args.name, datetime.datetime.now())
     logger.info('Saving to {}'.format(save_path))
-    print(metrics_out)
-    helpers.save_metadata(metrics_out, 'results', filename=save_path)
+    logger.info(metrics_out)
+
+    try:
+        helpers.save_metadata(metrics_out, args.output_directory, filename=save_path)
+    except AttributeError:
+        helpers.save_metadata(metrics_out, 'results', filename=save_path)
 
     return metric, discrete_metric, marginal_entropies, cond_entropies, z_v_mapping
 
@@ -679,6 +712,7 @@ if __name__ == '__main__':
     parser.add_argument('--save', type=str, default='results')
     parser.add_argument('--n_samples', type=int, default=10000)
     parser.add_argument('--dataset', type=str, default='dsprites', choices=['dsprites', 'custom'])
+    parser.add_argument('--complete_eval', action='store_true', help='Train downstream model with full representation as well.')
     cmd_args = parser.parse_args()
 
     if cmd_args.gpu != 0:
@@ -711,7 +745,7 @@ if __name__ == '__main__':
             }, os.path.join(cmd_args.save, save_path_pt))
 
     elif args.dataset == 'custom':
-        metrics, *_ = metric_custom(args, model, device, logger)
+        metrics, *_ = metric_custom(args, model, device, logger, evaluate_with_mbc=cmd_args.complete_eval)
         logger.info(metrics)
         logger.info('Time elapsed: {:.2f}s'.format(time.time() - start_time))
     else:

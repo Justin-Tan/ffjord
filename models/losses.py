@@ -52,7 +52,7 @@ class BaseLoss:
         self.annealing_steps = annealing_steps
         self.supervision = supervision
         self.supervision_lagrange_m = supervision_lagrange_m
-        self.flow_type = flow_type
+        self.flow = flow_type
 
         try:
             sensitive_latent_idx.sort()
@@ -109,7 +109,7 @@ class BetaVAE_loss(BaseLoss):
         self.beta = beta
         
     def __call__(self, data, reconstruction, latent_stats, storage, training=True, 
-            generative_factors=None, flow_output=None, **kwargs):
+            latent_sample=None, generative_factors=None, flow_output=None, **kwargs):
         storage = self._precall(training, storage)
 
         recon_loss = _reconstruction_loss(data, reconstruction, distribution=self.distribution,
@@ -159,7 +159,7 @@ class AnnealedVAE_loss(BaseLoss):
         self.C_fin = C_fin
         
     def __call__(self, data, reconstruction, latent_stats, storage, training=True, 
-            generative_factors=None, flow_output=None, **kwargs):
+            latent_sample=None, generative_factors=None, flow_output=None, **kwargs):
         storage = self._precall(training, storage)
 
         latent_dist = kwargs['latent_dist']
@@ -572,7 +572,7 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
             # print(log_px)
         else:
             assert flow_output is not None, 'Must specify normalizing flow'
-            if flow_type == 'real_nvp'
+            if flow_type == 'real_nvp':
                 x_flow_inv, log_det_jacobian_inv = flow_output['x_flow_inv'], flow_output['log_det_jacobian_inv']
                 assert log_det_jacobian_inv is not None, 'Must supply determinant of transformation Jacobian!'
                 log_pxCz = _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv)
@@ -894,4 +894,6 @@ def _get_log_pz_qz_prodzi_qzCx_isolate_sensitives(latent_sample, latent_dist, n_
                      'log_qt': log_qt}
 
     return log_pz, log_pt, log_pz_minus_t, log_qz, log_q_z_minus_t, log_prod_qzi, log_prod_qti, log_prod_qz_minus_ti, log_q_zCx, mi_components
+
+
 
