@@ -206,19 +206,53 @@ class VAE_ODE(VAE):
         self.cnf = build_model_tabular(args, dims)
 
 
-    def forward(self, x, reverse=False):
+    def _get_transforms(model):
+
+        def sample_fn(z, logpz=None):
+            if logpz is not None:
+                return model(z, logpz, reverse=True)
+            else:
+                return model(z, reverse=True)
+
+        def density_fn(x, logpx=None):
+            if logpx is not None:
+                return model(x, logpx, reverse=False)
+            else:
+                return model(x, reverse=False)
+
+        return sample_fn, density_fn
+
+    def forward(self, x, sample=False):
 
         latent_stats = self.encoder(x)
         latent_sample = self.reparameterize(latent_stats)
-        x_stats = None
+
+        # Parameters of base distribution - diagonal covariance Gaussian
+        x_stats = self.decoder(latent_sample)
+
+        sample_fn, density_fn = _get_transforms(self.cnf)
+
+        if sample is True:
+            # Return reconstructed sample from target density, reverse pass
+            # x_0 -> CNF^{-1} -> x_K
+            with torch.no_grad():
+                x0_sample = self.reparameterize_continuous(mu=x_stats['mu'], logvar=x_stats['logvar'])
+                x_hat = sample_fn(x0_sample)  # reverse pass
+                self.flow_output['x_flow'] = x_hat
+
+        else:
+            # Invert CNF to fit flow-based model to target density, by 
+            # transforming x to sample x_0 from base distribution
+            # x_K -> CNF -> x_0
+            zero = torch.zeros(x.shape[0], 1).to(x)
+            x_0, delta_logp = self.cnf(x, zero)
+            self.flow_output['x_flow'] = x_0
+            self.flow_output['log_det_jacobian'] = delta_logp
 
         # Compute change in log-prob via numerical integration
         zero = torch.zeros(latent_sample.shape[0], 1).to(latent_sample)
         x, delta_logp = self.cnf(latent_sample, zero)
-
-        self.flow_output['log_det_jacobian'] = -delta_logp.view(-1)
-        self.flow_output['x_flow'] = x
-        self.flow_output['z_0'] = latent_sample
+        delta_logp = delta_logp.view(-1) 
 
         return x_stats, latent_sample, latent_stats, self.flow_output
     
@@ -252,8 +286,9 @@ class realNVP_VAE(VAE):
 
         if sample is True:
             # Return reconstructed sample from target density
-            flow_output = self.forward_flow(x_stats)
-            return x_stats, latent_sample, latent_stats, flow_output
+            with torch.no_grad():
+                flow_output = self.forward_flow(x_stats)
+                return x_stats, latent_sample, latent_stats, flow_output
         else:
             # Invert flow to fit flow-based model to target density
             # Note reversed order of flow, LDJ in backward output
@@ -374,3 +409,5 @@ class PlanarVAE(VAE):
         self.flow_output = {'log_det_jacobian': log_det_jacobian, 'z_flow': z_flow}
 
         return x_stats, latent_sample, latent_stats, self.flow_output
+
+

@@ -32,6 +32,12 @@ def get_model_device(model):
     """Return the device on which a model is."""
     return next(model.parameters()).device
 
+
+def makedirs(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
 def save_metadata(metadata, directory='results', filename=META_FILENAME, **kwargs):
     """ Save the metadata of a training directory.
     Parameters
@@ -136,7 +142,7 @@ def load_model(save_path, device, optimizer=None, prediction=True):
 
     return args, model.to(device)
 
-def logger_setup():
+def logger_setup_alpha():
     formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s', 
                                   "%H:%M:%S")
     logger = logging.getLogger(__name__)
@@ -145,6 +151,33 @@ def logger_setup():
     stream.setLevel('INFO'.upper())
     stream.setFormatter(formatter)
     logger.addHandler(stream)
+    return logger
+
+
+def logger_setup(logpath, filepath, package_files=[], displaying=True, saving=True, debug=False):
+    logger = logging.getLogger()
+    if debug:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    logger.setLevel(level)
+    if saving:
+        info_file_handler = logging.FileHandler(logpath, mode="a")
+        info_file_handler.setLevel(level)
+        logger.addHandler(info_file_handler)
+    if displaying:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(level)
+        logger.addHandler(console_handler)
+    logger.info(filepath)
+    # with open(filepath, "r") as f:
+    #     logger.info(f.read())
+
+    for f in package_files:
+        logger.info(f)
+        with open(f, "r") as package_f:
+            logger.info(package_f.read())
+
     return logger
 
 def log(storage, epoch, counter, mean_epoch_loss, total_loss, best_loss, start_time, epoch_start_time, 

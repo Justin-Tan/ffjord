@@ -34,6 +34,32 @@ from train_misc import add_spectral_norm, spectral_norm_power_iteration
 from train_misc import create_regularization_fns, get_regularization, append_regularization_to_log
 from train_misc import build_model_tabular, override_divergence_fn
 
+def visualize_reconstruction(args, data, device, model):
+
+    model.eval()
+        
+    with torch.no_grad():
+        data = data.to(device, dtype=torch.float)
+        recon, latent_sample, latent_dist, flow_output = model(data, sample=True)
+
+        if args.flow == 'no_flow':
+            # Sample from distribution defined by amortized encoder parameters - by default
+            # diagonal covariance Gaussian
+            x_sample = model.reparameterize_continuous(mu=recon['mu'], logvar=recon['logvar']) 
+        else:  # using some variant of normalizing flow
+            x_flow = flow_output['x_flow']
+            if isinstance(x_flow, list):
+                x_sample = flow_output['x_flow'][-1]
+            else:
+                x_sample = x_flow
+            
+        x_sample = x_sample.cpu().numpy()
+        for i in range(x_sample.shape[1]):
+            compare_histograms_overlay(epoch=epoch, itr=itr, data_gen=x_sample[:,i],
+                data_real=data[:,i], save_dir=args.save, name='flow_{}'.format(i))
+
+
+
 def test(epoch, counter, data, gen_factors, loss_function, device, model, epoch_test_loss, storage, best_test_loss, 
          start_time, epoch_start_time, log_interval_p_epoch, logger):
 
@@ -65,7 +91,7 @@ def test(epoch, counter, data, gen_factors, loss_function, device, model, epoch_
 
 
 def train(args, model, train_loader, test_loader, device, 
-          optimizer, storage, storage_test, logger, log_interval_p_epoch=2):
+          optimizer, storage, storage_test, logger, log_interval_p_epoch=8):
     
     print('Using device', device)
     assert log_interval_p_epoch >= 2, 'Show logs more!'
@@ -137,6 +163,10 @@ def train(args, model, train_loader, test_loader, device,
                                                        loss_function, device, model, epoch_test_loss, 
                                                        storage_test, best_test_loss, start_time, epoch_start_time,
                                                        log_interval_p_epoch, logger)
+
+                # Visualization
+                visualize_reconstruction(args, data, device, model):
+
                 model.train()
 
         mean_epoch_loss = np.mean(epoch_loss)
@@ -145,6 +175,7 @@ def train(args, model, train_loader, test_loader, device,
         logger.info('===>> Epoch {} | Mean train loss: {:.3f} | Mean test loss: {:.3f}'.format(epoch, 
             mean_epoch_loss, mean_test_loss))    
     
+    helpers.makedirs('storage')
     with open('storage/storage_{}_{:%Y_%m_%d_%H:%M:%S}.pkl'.format(args.name, datetime.datetime.now()), 'wb') as handle:
         pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
@@ -167,10 +198,12 @@ if __name__ == '__main__':
     general.add_argument("-d", "--dataset", type=str, default='dsprites', help="Training dataset to use.",
         choices=['dsprites', 'custom', 'dsprites_scream'], required=True)
     general.add_argument("-gpu", "--gpu", type=int, default=0, help="GPU ID.")
+    general.add_argument("-lpe", "--logs_per_epoch", type=int, default=8, help="Number of times to report metrics per epoch.")
     general.add_argument("-multigpu", "--multigpu", help="Toggle data parallel capability using torch DataParallel", action="store_true")
+    general.add_argument('-bs', '--batch_size', type=int, default=2048, help='input batch size for training')
     general.add_argument(
         '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'real_nvp', 'no_flow'], 
-        help="""Type of flows to use in decoder VAE, no flows can also be selected."""
+        help="""Type of flows to use in decoder of VAE, no flows can also be selected."""
     )
 
     # Optimization-related options
@@ -210,7 +243,7 @@ if __name__ == '__main__':
 
     # Continuous-time normalizing flow options
     cnf_args = parser.add_argument_group("CNF - related options")
-    cnf_args.add_argument('--dims', type=str, default='512-512', help='Defines dynamics network architecture')
+    cnf_args.add_argument('--dims', type=str, default='256-256', help='Defines dynamics network architecture')
     cnf_args.add_argument("--num_blocks", type=int, default=1, help='Number of stacked CNFs.')
     cnf_args.add_argument('--time_length', type=float, default=0.5)
     cnf_args.add_argument('--train_T', type=eval, default=False)
@@ -252,7 +285,7 @@ if __name__ == '__main__':
 
     start_time = time.time()
     device = helpers.get_device()
-    logger = helpers.logger_setup()
+    logger = helpers.logger_setup(logpath=os.path.join(args.save, 'logs'), filepath=os.path.abspath(__file__))
 
 
     # Override default arguments with provided command line arguments
@@ -315,7 +348,8 @@ if __name__ == '__main__':
         model = vae.VAE_ODE(args)
 
     n_gpus = torch.cuda.device_count()
-    helpers.summary(model, input_size=[[args.input_dim]] if args.dataset=='custom' else args.input_dim, device='cpu')
+    if args.flow != 'cnf':
+        helpers.summary(model, input_size=[[args.input_dim]] if args.dataset=='custom' else args.input_dim, device='cpu')
 
     if n_gpus > 1 and args.multigpu is True:
         logger.info('Using {} GPUs.'.format(n_gpus))
@@ -343,7 +377,7 @@ if __name__ == '__main__':
     storage = defaultdict(list)
     storage_test = defaultdict(list)
     ckpt_path = train(args, model, train_loader, test_loader, device, optimizer, storage, storage_test,
-        logger, log_interval_p_epoch=2)
+        logger, log_interval_p_epoch=args.logs_per_epoch)
     args.ckpt = ckpt_path
 
     """
