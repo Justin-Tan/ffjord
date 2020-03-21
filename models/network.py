@@ -289,7 +289,7 @@ class ToyDecoder(nn.Module):
         post_logvar = self.dense_post_logvar(h)
         post_logvar = torch.clamp(post_logvar, min=-10, max=10)
 
-        return dict(mu=post_mu, logvar=post_logvar, hidden=h)
+        return dict(mu=post_mu, logvar=post_logvar)  # , hidden=h)
 
 
 class NVP_net(nn.Module):

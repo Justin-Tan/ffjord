@@ -1230,3 +1230,220 @@ Epoch 6 | Iter 860 | Time 2.238(2.274) | Loss -65.653(-64.536) | NFE Forward 184
 Epoch 6 | Iter 870 | Time 2.307(2.279) | Loss -67.254(-65.077) | NFE Forward 190(183.7) | NFE Backward 186(184.0) | CNF Time 2.000(2.000)
 Epoch 6 | Iter 880 | Time 2.292(2.276) | Loss -67.819(-65.751) | NFE Forward 178(183.2) | NFE Backward 192(184.2) | CNF Time 2.000(2.000)
 Epoch 6 | Iter 890 | Time 2.304(2.278) | Loss -67.796(-66.276) | NFE Forward 178(183.4) | NFE Backward 192(185.2) | CNF Time 2.000(2.000)
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 73.135 | Total loss: 73.135 | ELBO: -57.154 | Reco Loss: 51.827 | KL Loss: 5.327 | Time: 9.1 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 49.770 | Total loss: 49.770 | ELBO: -40.385 | Reco Loss: 37.257 | KL Loss: 3.128 | Time: 7.5 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 63.985 | Total loss: 63.985 | ELBO: -42.278 | Reco Loss: 35.042 | KL Loss: 7.236 | Time: 9.2 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 75.625 | Total loss: 75.625 | ELBO: -56.378 | Reco Loss: 49.962 | KL Loss: 6.416 | Time: 9.3 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 62.655 | Total loss: 62.655 | ELBO: -47.983 | Reco Loss: 43.092 | KL Loss: 4.891 | Time: 7.4 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 51.995 | Total loss: 51.995 | ELBO: -41.085 | Reco Loss: 37.448 | KL Loss: 3.637 | Time: 7.4 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 48.087 | Total loss: 48.087 | ELBO: -36.695 | Reco Loss: 32.897 | KL Loss: 3.797 | Time: 7.4 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 90.189 | Total loss: 90.189 | ELBO: -63.792 | Reco Loss: 54.993 | KL Loss: 8.799 | Time: 9.1 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 102.758 | Total loss: 102.758 | ELBO: -75.769 | Reco Loss: 66.773 | KL Loss: 8.996 | Time: 8.8 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 51.997 | Total loss: 51.997 | ELBO: -40.425 | Reco Loss: 36.567 | KL Loss: 3.857 | Time: 7.5 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 46.712 | Total loss: 41.428 | ELBO: -32.488 | Reco Loss: 29.508 | KL Loss: 2.980 | Time: 115.8 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 42.810 | Total loss: 35.007 | ELBO: -27.008 | Reco Loss: 24.342 | KL Loss: 2.666 | Time: 218.1 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 39.384 | Total loss: 29.105 | ELBO: -21.600 | Reco Loss: 19.098 | KL Loss: 2.502 | Time: 319.7 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 36.360 | Total loss: 24.262 | ELBO: -16.986 | Reco Loss: 14.561 | KL Loss: 2.425 | Time: 421.2 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 75.007 | Total loss: 75.007 | ELBO: -57.658 | Reco Loss: 51.875 | KL Loss: 5.783 | Time: 8.9 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 33.691 | Total loss: 20.346 | ELBO: -12.972 | Reco Loss: 10.514 | KL Loss: 2.458 | Time: 524.8 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 57.660 | Total loss: 40.313 | ELBO: -27.067 | Reco Loss: 22.652 | KL Loss: 4.415 | Time: 107.6 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 31.359 | Total loss: 17.371 | ELBO: -9.865 | Reco Loss: 7.362 | KL Loss: 2.502 | Time: 625.8 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 49.696 | Total loss: 33.766 | ELBO: -23.160 | Reco Loss: 19.625 | KL Loss: 3.535 | Time: 204.5 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 40.176 | Total loss: 11.618 | ELBO: -2.638 | Reco Loss: -0.355 | KL Loss: 2.993 | Time: 301.3 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 29.236 | Total loss: 14.372 | ELBO: -6.809 | Reco Loss: 4.288 | KL Loss: 2.521 | Time: 727.1 s | Improved: [*]
+===>> Epoch 0 | Mean train loss: 67.427 | Mean test loss: 29.236
+[TEST]
+Epoch 1 | Mean epoch loss: 12.358 | Total loss: 12.358 | ELBO: -4.631 | Reco Loss: 2.055 | KL Loss: 2.576 | Time: 829.8 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 68.979 | Total loss: 68.979 | ELBO: -51.177 | Reco Loss: 45.244 | KL Loss: 5.934 | Time: 9.2 s | Improved: [*]
+[TEST]
+Epoch 1 | Mean epoch loss: 11.393 | Total loss: 10.427 | ELBO: -2.737 | Reco Loss: 0.173 | KL Loss: 2.563 | Time: 932.0 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 55.914 | Total loss: 42.850 | ELBO: -27.813 | Reco Loss: 22.801 | KL Loss: 5.012 | Time: 106.9 s | Improved: [*]
+[TEST]
+Epoch 1 | Mean epoch loss: 10.601 | Total loss: 9.019 | ELBO: -1.074 | Reco Loss: -1.574 | KL Loss: 2.648 | Time: 1033.8 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 44.483 | Total loss: 21.621 | ELBO: -8.800 | Reco Loss: 4.526 | KL Loss: 4.274 | Time: 202.4 s | Improved: [*]
+[TEST]
+Epoch 1 | Mean epoch loss: 9.854 | Total loss: 7.612 | ELBO: 0.499 | Reco Loss: -3.202 | KL Loss: 2.704 | Time: 1135.5 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 34.898 | Total loss: 6.142 | ELBO: 5.366 | Reco Loss: -9.201 | KL Loss: 3.836 | Time: 299.7 s | Improved: [*]
+[TEST]
+Epoch 1 | Mean epoch loss: 9.205 | Total loss: 6.608 | ELBO: 1.762 | Reco Loss: -4.552 | KL Loss: 2.790 | Time: 1237.4 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 26.952 | Total loss: -4.830 | ELBO: 15.054 | Reco Loss: -18.462 | KL Loss: 3.408 | Time: 395.3 s | Improved: [*]
+[TEST]
+Epoch 1 | Mean epoch loss: 8.626 | Total loss: 5.733 | ELBO: 2.839 | Reco Loss: -5.696 | KL Loss: 2.857 | Time: 1339.1 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 20.583 | Total loss: -11.263 | ELBO: 20.554 | Reco Loss: -23.650 | KL Loss: 3.097 | Time: 491.5 s | Improved: [*]
+[TEST]
+Epoch 1 | Mean epoch loss: 8.089 | Total loss: 4.865 | ELBO: 3.945 | Reco Loss: -6.881 | KL Loss: 2.936 | Time: 1440.9 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 15.358 | Total loss: -15.990 | ELBO: 24.467 | Reco Loss: -27.293 | KL Loss: 2.826 | Time: 587.8 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 1 | Mean epoch loss: 7.634 | Total loss: 4.450 | ELBO: 4.704 | Reco Loss: -7.755 | KL Loss: 3.051 | Time: 1542.7 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 10.950 | Total loss: -19.908 | ELBO: 27.693 | Reco Loss: -30.288 | KL Loss: 2.595 | Time: 684.0 s | Improved: [*]
+===>> Epoch 1 | Mean train loss: 16.295 | Mean test loss: 7.634
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: 7.252 | Total loss: -22.334 | ELBO: 29.388 | Reco Loss: -31.739 | KL Loss: 2.351 | Time: 780.3 s | Improved: [*]
+[TEST]
+Epoch 2 | Mean epoch loss: 3.370 | Total loss: 3.370 | ELBO: 5.972 | Reco Loss: -9.086 | KL Loss: 3.114 | Time: 1645.2 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 4.157 | Total loss: -23.700 | ELBO: 30.196 | Reco Loss: -32.361 | KL Loss: 2.165 | Time: 876.6 s | Improved: [*]
+[TEST]
+Epoch 2 | Mean epoch loss: 3.153 | Total loss: 2.937 | ELBO: 6.540 | Reco Loss: -9.699 | KL Loss: 3.159 | Time: 1746.7 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 1.552 | Total loss: -24.495 | ELBO: 30.364 | Reco Loss: -32.321 | KL Loss: 1.956 | Time: 972.8 s | Improved: [*]
+[TEST]
+Epoch 2 | Mean epoch loss: 3.002 | Total loss: 2.698 | ELBO: 6.996 | Reco Loss: -10.227 | KL Loss: 3.231 | Time: 1848.3 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: -0.471 | Total loss: -22.720 | ELBO: 28.127 | Reco Loss: -29.929 | KL Loss: 1.802 | Time: 1069.1 s | Improved: 
+[TEST]
+Epoch 2 | Mean epoch loss: 2.780 | Total loss: 2.114 | ELBO: 7.950 | Reco Loss: -11.304 | KL Loss: 3.355 | Time: 1950.3 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: -2.770 | Total loss: -30.356 | ELBO: 35.312 | Reco Loss: -36.964 | KL Loss: 1.652 | Time: 1165.5 s | Improved: [*]
+[TEST]
+Epoch 2 | Mean epoch loss: 2.620 | Total loss: 1.979 | ELBO: 8.162 | Reco Loss: -11.542 | KL Loss: 3.380 | Time: 2051.8 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: -4.795 | Total loss: -31.125 | ELBO: 35.686 | Reco Loss: -37.206 | KL Loss: 1.520 | Time: 1262.1 s | Improved: [*]
+[TEST]
+Epoch 2 | Mean epoch loss: 2.348 | Total loss: 0.988 | ELBO: 9.380 | Reco Loss: -12.836 | KL Loss: 3.456 | Time: 2153.7 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: -6.709 | Total loss: -33.511 | ELBO: 37.671 | Reco Loss: -39.058 | KL Loss: 1.387 | Time: 1358.3 s | Improved: [*]
+[TEST]
+Epoch 2 | Mean epoch loss: 2.159 | Total loss: 1.028 | ELBO: 9.539 | Reco Loss: -13.061 | KL Loss: 3.522 | Time: 2255.6 s | Improved: 
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: -8.494 | Total loss: -35.258 | ELBO: 39.115 | Reco Loss: -40.400 | KL Loss: 1.286 | Time: 1454.4 s | Improved: [*]
+[TEST]
+Epoch 2 | Mean epoch loss: 1.988 | Total loss: 0.789 | ELBO: 10.141 | Reco Loss: -13.784 | KL Loss: 3.643 | Time: 2357.5 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: -10.011 | Total loss: -34.287 | ELBO: 37.811 | Reco Loss: -38.985 | KL Loss: 1.175 | Time: 1550.8 s | Improved: 
+===>> Epoch 2 | Mean train loss: 9.019 | Mean test loss: 1.988
+[TEST]
+Epoch 3 | Mean epoch loss: 0.664 | Total loss: 0.664 | ELBO: 10.525 | Reco Loss: -14.255 | KL Loss: 3.730 | Time: 2460.3 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: -11.376 | Total loss: -34.584 | ELBO: 37.813 | Reco Loss: -38.890 | KL Loss: 1.076 | Time: 1647.2 s | Improved: 
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 3 | Mean epoch loss: 0.206 | Total loss: -0.251 | ELBO: 11.607 | Reco Loss: -15.392 | KL Loss: 3.785 | Time: 2562.7 s | Improved: [*]
+/data/cephfs/punim0011/jtan/github/ffjord/train_vae.py
+Using dataset: custom
+Note: NumExpr detected 24 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+NumExpr defaulting to 8 threads.
+[TEST]
+Epoch 0 | Mean epoch loss: -12.664 | Total loss: -35.843 | ELBO: 38.785 | Reco Loss: -39.766 | KL Loss: 0.981 | Time: 1744.3 s | Improved: [*]
+[TEST]
+Epoch 0 | Mean epoch loss: 38.019 | Total loss: 38.019 | ELBO: -23.630 | Reco Loss: 18.833 | KL Loss: 4.797 | Time: 43.1 s | Improved: [*]
+[TEST]
+Epoch 3 | Mean epoch loss: 0.079 | Total loss: -0.176 | ELBO: 11.839 | Reco Loss: -15.727 | KL Loss: 3.888 | Time: 2665.2 s | Improved: 
+[TEST]
+Epoch 0 | Mean epoch loss: -13.916 | Total loss: -37.698 | ELBO: 40.430 | Reco Loss: -41.341 | KL Loss: 0.911 | Time: 1841.3 s | Improved: [*]

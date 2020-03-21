@@ -37,6 +37,32 @@ def makedirs(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
+def setup_signature(args):
+
+    time_signature = '{:%Y_%m_%d_%H:%M}'.format(datetime.datetime.now()).replace(':', '_')
+    args.name = '{}_{}_{}'.format(args.dataset, args.loss_type, time_signature)
+
+    if args.flow != 'no_flow':
+        args.name = '{}_{}'.format(args.name, args.flow)
+
+    if args.loss_type == 'beta_VAE':
+        args.name = '{}_beta{}'.format(args.name, args.beta)
+    elif args.loss_type == 'annealed_VAE':
+        args.name = '{}_gamma{}'.format(args.name, args.gamma)
+    elif args.loss_type == 'factor_VAE':
+        args.name = '{}_gamma_fvae{}'.format(args.name, args.gamma_fvae)
+    elif 'TCVAE' in args.loss_type:
+        args.name = '{}_betatcvae{}'.format(args.name, args.beta_btcvae)
+
+    if args.supervision is True:
+        args.name = '{}_lambda{}'.format(args.name, args.supervision_lagrange_m)
+        args.name = '{}_sidx{}'.format(args.name, str(args.sensitive_latent_idx))
+
+    args.snapshot = os.path.join(args.save, args.name)
+    makedirs(args.snapshot)
+    args.checkpoints_save = os.path.join(args.snapshot, 'checkpoints')
+
+    return args
 
 def save_metadata(metadata, directory='results', filename=META_FILENAME, **kwargs):
     """ Save the metadata of a training directory.
@@ -57,6 +83,7 @@ def save_metadata(metadata, directory='results', filename=META_FILENAME, **kwarg
 def save_model(model, optimizer, mean_loss, directory, epoch, device, args,
                multigpu=False):
  
+    makedirs(directory)
     model.cpu()  # Move model parameters to CPU for consistency when restoring
 
     metadata = dict(input_dim=args.input_dim, latent_dim=args.latent_dim,

@@ -588,7 +588,7 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
 def _ffjord_log_density(x_flow, delta_logp, x_stats):
 
     # Compute log-prob of sample from base distribution
-    log_p0_xCz = log_density_gaussian(x_flow, *x_stats).sum(dim=1)
+    log_p0_xCz = log_density_gaussian(x_flow, mu=x_stats['mu'], logvar=x_stats['logvar']).sum(dim=1)
 
     # Compute log-prob of transformed data
     log_pxCz = log_p0_xCz - delta_logp

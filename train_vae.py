@@ -5,7 +5,6 @@ import seaborn as sns
 import os, glob, time, datetime
 import logging, pickle, argparse
 
-
 from scipy import stats
 from pprint import pprint
 from tqdm import tqdm, trange
@@ -21,11 +20,11 @@ import torchvision.transforms as transforms
 import mig_eval
 from default_config import args, directories
 from models import losses, network, vae
-from utils import helpers, initialization, traversals, datasets, evaluate, math, distributions
+from utils import helpers, initialization, traversals, datasets, evaluate, math, distributions, vis
 
 # FFJORD library
 import lib.utils as utils
-from lib.visualize_flow import visualize_transform, compare_histograms_overlay
+from lib.visualize_flow import visualize_transform
 import lib.layers.odefunc as odefunc
 
 from train_misc import standard_normal_logprob
@@ -33,31 +32,6 @@ from train_misc import set_cnf_options, count_nfe, count_parameters, count_total
 from train_misc import add_spectral_norm, spectral_norm_power_iteration
 from train_misc import create_regularization_fns, get_regularization, append_regularization_to_log
 from train_misc import build_model_tabular, override_divergence_fn
-
-def visualize_reconstruction(args, data, device, model):
-
-    model.eval()
-        
-    with torch.no_grad():
-        data = data.to(device, dtype=torch.float)
-        recon, latent_sample, latent_dist, flow_output = model(data, sample=True)
-
-        if args.flow == 'no_flow':
-            # Sample from distribution defined by amortized encoder parameters - by default
-            # diagonal covariance Gaussian
-            x_sample = model.reparameterize_continuous(mu=recon['mu'], logvar=recon['logvar']) 
-        else:  # using some variant of normalizing flow
-            x_flow = flow_output['x_flow']
-            if isinstance(x_flow, list):
-                x_sample = flow_output['x_flow'][-1]
-            else:
-                x_sample = x_flow
-            
-        x_sample = x_sample.cpu().numpy()
-        for i in range(x_sample.shape[1]):
-            compare_histograms_overlay(epoch=epoch, itr=itr, data_gen=x_sample[:,i],
-                data_real=data[:,i], save_dir=args.save, name='flow_{}'.format(i))
-
 
 
 def test(epoch, counter, data, gen_factors, loss_function, device, model, epoch_test_loss, storage, best_test_loss, 
@@ -124,7 +98,7 @@ def train(args, model, train_loader, test_loader, device,
         epoch_start_time = time.time()
         
         if epoch % args.save_interval == 0 and epoch > 1 and epoch != args.n_epochs:
-            helpers.save_model(model, optimizer, mean_epoch_loss, directories.checkpoints, epoch, device, args=args)
+            helpers.save_model(model, optimizer, mean_epoch_loss, args.checkpoints_save, epoch, device, args=args)
         
         for idx, (data, gen_factors) in enumerate(tqdm(train_loader, desc='Train'), 0):
 
@@ -165,7 +139,7 @@ def train(args, model, train_loader, test_loader, device,
                                                        log_interval_p_epoch, logger)
 
                 # Visualization
-                visualize_reconstruction(args, data, device, model):
+                vis.visualize_reconstruction(args, data, device, model, epoch, idx)
 
                 model.train()
 
@@ -179,7 +153,7 @@ def train(args, model, train_loader, test_loader, device,
     with open('storage/storage_{}_{:%Y_%m_%d_%H:%M:%S}.pkl'.format(args.name, datetime.datetime.now()), 'wb') as handle:
         pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
-    ckpt_path = helpers.save_model(model, optimizer, mean_epoch_loss, directories.checkpoints, epoch, device, args=args)
+    ckpt_path = helpers.save_model(model, optimizer, mean_epoch_loss, args.checkpoints_save, epoch, device, args=args)
     logger.info("Training complete. Mean time / epoch: {:.3f}".format((time.time()-start_time)/args.n_epochs))
     
     return ckpt_path
@@ -201,6 +175,7 @@ if __name__ == '__main__':
     general.add_argument("-lpe", "--logs_per_epoch", type=int, default=8, help="Number of times to report metrics per epoch.")
     general.add_argument("-multigpu", "--multigpu", help="Toggle data parallel capability using torch DataParallel", action="store_true")
     general.add_argument('-bs', '--batch_size', type=int, default=2048, help='input batch size for training')
+    general.add_argument('--save', type=str, default='experiments', help='Parent directory for stored information')
     general.add_argument(
         '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'real_nvp', 'no_flow'], 
         help="""Type of flows to use in decoder of VAE, no flows can also be selected."""
@@ -273,11 +248,6 @@ if __name__ == '__main__':
     cnf_args.add_argument('--evaluate', action='store_true')
     cnf_args.add_argument('--model_path', type=str, default='')
 
-    parser.add_argument('--save', type=str, default='experiments/cnf')
-    parser.add_argument('--viz_freq', type=int, default=1000)
-    parser.add_argument('--val_freq', type=int, default=250)
-    parser.add_argument('--log_freq', type=int, default=50)
-
     cmd_args = parser.parse_args()
 
     if cmd_args.gpu != 0:
@@ -285,8 +255,6 @@ if __name__ == '__main__':
 
     start_time = time.time()
     device = helpers.get_device()
-    logger = helpers.logger_setup(logpath=os.path.join(args.save, 'logs'), filepath=os.path.abspath(__file__))
-
 
     # Override default arguments with provided command line arguments
     dictify = lambda x: dict((n, getattr(x, n)) for n in dir(x) if not (n.startswith('__') or 'logger' in n))
@@ -296,7 +264,9 @@ if __name__ == '__main__':
     args.latent_spec['continuous'] = cmd_args.latent_dim
     if args.output_directory not in [directories.checkpoints, 'results']:
         args.output_directory = os.path.join('checkpoints', args.output_directory)
-    args.name = '{}_{}'.format(args.name, args.loss_type)
+
+    args = helpers.setup_signature(args)
+    logger = helpers.logger_setup(logpath=os.path.join(args.snapshot, 'logs'), filepath=os.path.abspath(__file__))
 
     assert args.loss_type in args.LOSSES, 'Unrecognized loss type!'
     assert args.dataset in args.DATASETS, 'Unrecognized dataset!'

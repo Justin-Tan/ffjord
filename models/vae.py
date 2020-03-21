@@ -178,7 +178,7 @@ class VAE(nn.Module):
             one_hot_samples = one_hot_samples.to(alpha.device)
             return one_hot_samples
     
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         latent_stats = self.encoder(x)
         mu, logvar = latent_stats['continuous']
         latent_sample = self.reparameterize(latent_stats)
@@ -202,11 +202,11 @@ class VAE_ODE(VAE):
         super(VAE_ODE, self).__init__(args)
         assert args.flow == 'cnf', 'Must toggle CNF option in arguments!'
 
-        dims = self.latent_dim
+        dims = self.input_dim
         self.cnf = build_model_tabular(args, dims)
 
 
-    def _get_transforms(model):
+    def _get_transforms(self, model):
 
         def sample_fn(z, logpz=None):
             if logpz is not None:
@@ -230,7 +230,7 @@ class VAE_ODE(VAE):
         # Parameters of base distribution - diagonal covariance Gaussian
         x_stats = self.decoder(latent_sample)
 
-        sample_fn, density_fn = _get_transforms(self.cnf)
+        sample_fn, density_fn = self._get_transforms(self.cnf)
 
         if sample is True:
             # Return reconstructed sample from target density, reverse pass
@@ -247,12 +247,7 @@ class VAE_ODE(VAE):
             zero = torch.zeros(x.shape[0], 1).to(x)
             x_0, delta_logp = self.cnf(x, zero)
             self.flow_output['x_flow'] = x_0
-            self.flow_output['log_det_jacobian'] = delta_logp
-
-        # Compute change in log-prob via numerical integration
-        zero = torch.zeros(latent_sample.shape[0], 1).to(latent_sample)
-        x, delta_logp = self.cnf(latent_sample, zero)
-        delta_logp = delta_logp.view(-1) 
+            self.flow_output['log_det_jacobian'] = delta_logp.view(-1)
 
         return x_stats, latent_sample, latent_stats, self.flow_output
     
@@ -307,7 +302,7 @@ class realNVP_VAE(VAE):
         batch_size = x_0.shape[0]
         x_flow = [x_0]  # Sequence of residual flows. \hat{x} = x_flow[-1]
 
-        log_det_jacobian = torch.zeros(batch_size).type_as(x.data)
+        log_det_jacobian = torch.zeros(batch_size).type_as(x_0.data)
 
         for k in range(self.n_flows):
             flow_k = getattr(self, 'flow_{}'.format(str(k)))
