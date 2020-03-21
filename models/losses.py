@@ -578,23 +578,22 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
                 log_pxCz = _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv)
             elif flow_type == 'cnf':  # use VAE-ODE class 
                 x_flow, delta_logp = flow_output['x_flow'], flow_output['log_det_jacobian']
-                assert log_det_jacobian is not None, 'Must supply determinant of transformation Jacobian!'
-                log_pxCz = _ffjord_log_density(x_flow, delta_logp, x_stats, z0=latent_sample, latent_stats=latent_stats)
+                assert delta_logp is not None, 'Must supply determinant of transformation Jacobian!'
+                log_pxCz = _ffjord_log_density(x_flow, delta_logp, x_stats)
 
         loss = -log_pxCz.mean()
 
     return loss
 
-def _ffjord_log_density(x_flow, delta_logp, x_stats, z0, latent_stats):
+def _ffjord_log_density(x_flow, delta_logp, x_stats):
 
-    # Compute log-prob of representation in latent space
-    log_q_zCx = log_density_gaussian(z0, *latent_stats).sum(dim=1)
-    # Consider this the base density at time 0
-    log_pz0 = log_q_zCx
+    # Compute log-prob of sample from base distribution
+    log_p0_xCz = log_density_gaussian(x_flow, *x_stats).sum(dim=1)
+
     # Compute log-prob of transformed data
-    log_px = log_pz0 - delta_logp
+    log_pxCz = log_p0_xCz - delta_logp
 
-    return log_px
+    return log_pxCz
 
 def _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv):
 
