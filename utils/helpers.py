@@ -389,7 +389,8 @@ def jsd_metric(df, selection_fraction=0.005, nbins=32, dE_min=-0.25, dE_max=0.1,
 
     def _one_hot_encoding(x, nbins):
         x_one_hot = np.zeros((x.shape[0], nbins))
-        x_one_hot[np.arange(x.shape[0]), x] = 1
+        # x_one_hot[np.arange(x.shape[0]), x] = 1
+        x_one_hot[np.arange(x.shape[0]), np.max(x, nbins-1)] = 1
         x_one_hot_sum = np.sum(x_one_hot, axis=0)/x_one_hot.shape[0]
 
         return x_one_hot_sum
