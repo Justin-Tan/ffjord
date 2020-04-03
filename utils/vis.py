@@ -1,11 +1,11 @@
 """ Authors: @YannDubs 2019
              @sksq96   2019 """
 
-import os
-import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import os
+import numpy as np
 import seaborn as sns
 import torch
 

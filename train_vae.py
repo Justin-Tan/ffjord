@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import os, glob, time, datetime
 import logging, pickle, argparse
 
@@ -65,7 +63,7 @@ def test(epoch, counter, data, gen_factors, loss_function, device, model, epoch_
 
 
 def train(args, model, train_loader, test_loader, device, 
-          optimizer, storage, storage_test, logger, log_interval_p_epoch=8):
+          optimizer, storage, storage_test, logger, log_interval_p_epoch=4):
     
     print('Using device', device)
     assert log_interval_p_epoch >= 2, 'Show logs more!'
