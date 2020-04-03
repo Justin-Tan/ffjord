@@ -581,7 +581,7 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
                 assert delta_logp is not None, 'Must supply determinant of transformation Jacobian!'
                 log_pxCz = _ffjord_log_density(x_flow, delta_logp, x_stats)
 
-        loss = -log_pxCz.mean()
+        loss = -torch.mean(log_pxCz)
 
     return loss
 

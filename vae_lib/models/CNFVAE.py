@@ -43,7 +43,7 @@ class CNFVAE(VAE):
     def forward(self, x):
         """
         Forward pass with planar flows for the transformation z_0 -> z_1 -> ... -> z_k.
-        Log determinant is computed as log_det_j = N E_q_z0[\sum_k log |det dz_k/dz_k-1| ].
+        Log determinant is computed as log_det_j = N E_q_z0[\sum_k log |det dz_k/dz_k-1| 
         """
 
         z_mu, z_var = self.encode(x)

@@ -247,7 +247,7 @@ class VAE_ODE(VAE):
             zero = torch.zeros(x.shape[0], 1).to(x)
             x_0, delta_logp = self.cnf(x, zero)
             self.flow_output['x_flow'] = x_0
-            self.flow_output['log_det_jacobian'] = delta_logp.view(-1)
+            self.flow_output['log_det_jacobian'] = delta_logp  #.view(-1)
 
         return x_stats, latent_sample, latent_stats, self.flow_output
     
