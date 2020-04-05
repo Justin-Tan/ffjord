@@ -21,7 +21,8 @@ def log_density_gaussian(x, mu, logvar):
 
     normalization = -0.5 * (np.log(2 * np.pi) + logvar)
     # inv_var = torch.exp(-logvar)
-    inv_var = torch.exp(torch.min(-logvar, torch.ones_like(logvar)*10))
+    # Logvar should be above exp(-5)
+    inv_var = torch.exp(torch.min(-logvar, torch.ones_like(logvar)*5))
     log_density = normalization - 0.5 * ((x - mu)**2 * inv_var)
 
     return log_density

@@ -337,7 +337,12 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
 if __name__ == '__main__':
 
-    device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
+    if args.gpu != 0:
+        torch.cuda.set_device(args.gpu)
+
+    # device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
+    device = helpers.get_device()
+
     cvt = lambda x: x.type(torch.float32).to(device, non_blocking=True)
     regularization_fns, regularization_coeffs = create_regularization_fns(args)
 
