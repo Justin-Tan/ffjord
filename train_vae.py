@@ -170,7 +170,7 @@ if __name__ == '__main__':
     general.add_argument("-d", "--dataset", type=str, default='dsprites', help="Training dataset to use.",
         choices=['dsprites', 'custom', 'dsprites_scream'], required=True)
     general.add_argument("-gpu", "--gpu", type=int, default=0, help="GPU ID.")
-    general.add_argument("-lpe", "--logs_per_epoch", type=int, default=8, help="Number of times to report metrics per epoch.")
+    general.add_argument("-lpe", "--logs_per_epoch", type=int, default=4, help="Number of times to report metrics per epoch.")
     general.add_argument("-multigpu", "--multigpu", help="Toggle data parallel capability using torch DataParallel", action="store_true")
     general.add_argument('-bs', '--batch_size', type=int, default=2048, help='input batch size for training')
     general.add_argument('--save', type=str, default='experiments', help='Parent directory for stored information')
