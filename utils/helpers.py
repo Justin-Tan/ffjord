@@ -40,7 +40,7 @@ def makedirs(directory):
 def setup_signature(args):
 
     time_signature = '{:%Y_%m_%d_%H:%M}'.format(datetime.datetime.now()).replace(':', '_')
-    args.name = '{}_{}_{}'.format(args.dataset, args.loss_type, time_signature)
+    args.name = '{}_{}_{}_{}'.format(args.name, args.dataset, args.loss_type, time_signature)
 
     if args.flow != 'no_flow':
         args.name = '{}_{}'.format(args.name, args.flow)

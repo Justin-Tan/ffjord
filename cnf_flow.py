@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 import os
 import time
+import pickle
 import argparse
 import itertools
 import numpy as np
@@ -15,6 +16,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import sklearn.datasets
 
+from collections import defaultdict
 from tqdm import tqdm, trange, tqdm_notebook
 
 # ffjord lib
@@ -65,7 +67,7 @@ parser.add_argument('--test_rtol', type=float, default=None)
 parser.add_argument('--residual', type=eval, default=False, choices=[True, False])
 parser.add_argument('--rademacher', type=eval, default=False, choices=[True, False])
 parser.add_argument('--spectral_norm', type=eval, default=False, choices=[True, False])
-parser.add_argument('--batch_norm', type=eval, default=False, choices=[True, False])
+parser.add_argument('--batch_norm', type=eval, default=True, choices=[True, False])
 parser.add_argument('--bn_lag', type=float, default=0)
 
 parser.add_argument('--early_stopping', type=int, default=32)
@@ -96,6 +98,8 @@ args = parser.parse_args()
 assert args.viz_freq > args.val_freq and args.viz_freq % args.val_freq == 0
 # logger
 utils.makedirs(args.save)
+storage_dir = os.path.join(args.save, 'storage')
+utils.makedirs(storage_dir)
 logger = utils.get_logger(logpath=os.path.join(args.save, 'logs'), filepath=os.path.abspath(__file__))
 
 if args.layer_type == "blend":
@@ -193,6 +197,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
     val_itr = 0
     n_vals_without_improvement = 0
     model.train()
+    storage = defaultdict(list)
 
 
     for epoch in trange(args.n_epochs, desc='epoch'):
@@ -238,6 +243,8 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
             end = time.time()
 
             if itr % args.log_freq == 0:
+                storage['time'].append(time.time())
+                storage['train_loss'].append(loss_meter.avg)
                 log_message = (
                     'Epoch {} | Iter {} | Time {:.3f}({:.3f}) | Loss {:.3f}({:.3f}) | NFE Forward {:.0f}({:.1f})'
                     ' | NFE Backward {:.0f}({:.1f}) | CNF Time {:.3f}({:.3f})'.format(
@@ -298,6 +305,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         n_vals_without_improvement += 1
                     update_lr(optimizer, n_vals_without_improvement, logger)
 
+                    storage['val_loss'].append(val_loss_meter.avg)
                     log_message = (
                         '[VAL] Epoch {} | Val Loss {:.3f} | NFE {:.0f} | '
                         'NoImproveEpochs {:02d}/{:02d} {}'.format(
@@ -313,10 +321,17 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
                 model.train()
 
+                with open(os.path.join(storage_dir, 'storage_tmp.pkl'), 'wb') as handle:
+                    pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
     logger.info('Training has finished.')
     model = helpers.quick_restore_model(model, os.path.join(args.save, 'cnf_hep_ckpt.pth')).to(device)
     set_cnf_options(args, model)
+
+    time_signature = '{:%Y_%m_%d_%H:%M}'.format(datetime.datetime.now()).replace(':', '_')
+    with open(os.path.join(storage_dir, 'storage_end_{}.pkl'.format(time_signature)), 'wb') as handle:
+        pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     logger.info('Evaluating model on test set.')
     model.eval()
@@ -348,8 +363,8 @@ if __name__ == '__main__':
 
     train_loader, test_loader = get_data(args, logger)
     input_dim = train_loader.dataset.input_dim
-    args.dims = '-'.join([str(args.hdim_factor * input_dim)] * args.nhidden)
-    # args.dims = '256-256-256'
+    # args.dims = '-'.join([str(args.hdim_factor * input_dim)] * args.nhidden)
+    args.dims = '256-256-256'
     # args.dims = '512-512-512'
 
     model = build_model_tabular(args, input_dim, regularization_fns).to(device)

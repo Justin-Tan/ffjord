@@ -277,6 +277,7 @@ if __name__ == '__main__':
 
     args = helpers.setup_signature(args)
     logger = helpers.logger_setup(logpath=os.path.join(args.snapshot, 'logs'), filepath=os.path.abspath(__file__))
+    logger.info('SAVING LOGS/CHECKPOINTS/RECORDS TO {}'.format(args.snapshot))
     logger.info('Using GPU ID {}'.format(args.gpu))
 
     assert args.loss_type in args.LOSSES, 'Unrecognized loss type!'
