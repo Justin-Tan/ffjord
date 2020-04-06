@@ -10,8 +10,11 @@ import torch.nn.functional as F
 import numpy as np
 
 from models import network
-from utils import math, distributions, initialization
+from utils import math, distributions, initialization, helpers
 
+# ffjord imports
+import lib.layers.diffeq_layers as diffeq_layers
+from lib.layers.odefunc import NONLINEARITIES
 from train_misc import build_model_tabular
 
 class VAE(nn.Module):
@@ -190,8 +193,10 @@ class VAE(nn.Module):
 class VAE_ODE(VAE):
     """ Subclass of VAE - replaces decoder with continuous normalizing flow, with
         dynamics determined by a neural network, which is a function of z ~ q(z|x). 
-        Performs amortized variational inference; parameters of dynamics network are 
-        a function of z.
+
+        Sample x_0 from base distribution emitted by generative network
+        x_0 ~ p(x_0 | z)
+        x_0 -> CNF -> \hat{x}
 
         Identical encoder logic to standard VAE. Allows density estimation of 
         data x by computing the change in log-density via numerical integration
@@ -251,6 +256,207 @@ class VAE_ODE(VAE):
 
         return x_stats, latent_sample, latent_stats, self.flow_output
     
+def get_hidden_dims(args):
+    return tuple(map(int, args.dims.split("-"))) + (args.input_dim,)
+
+class AmortizedLowRankODEnet(nn.Module):
+
+    def __init__(self, hidden_dims, input_dim, rank=1, layer_type="concat", nonlinearity="softplus"):
+        super(AmortizedLowRankODEnet, self).__init__()
+        base_layer = {
+            "ignore": diffeq_layers.IgnoreLinear,
+            "hyper": diffeq_layers.HyperLinear,
+            "squash": diffeq_layers.SquashLinear,
+            "concat": diffeq_layers.ConcatLinear,
+            "concat_v2": diffeq_layers.ConcatLinear_v2,
+            "concatsquash": diffeq_layers.ConcatSquashLinear,
+            "blend": diffeq_layers.BlendLinear,
+            "concatcoord": diffeq_layers.ConcatLinear,
+        }[layer_type]
+        self.input_dim = input_dim
+
+        # build layers and add them
+        layers = []
+        activation_fns = []
+        hidden_shape = input_dim
+
+        # Input dimensions: (x_dim, hidden_dim_1, ..., hidden_dim_N)
+        # Output dimensions: (hidden_dim_1, ..., hidden_dim_N, x_dim)
+        self.output_dims = hidden_dims
+        self.input_dims = (input_dim,) + hidden_dims[:-1]
+
+        for dim_out in hidden_dims:
+            layer = base_layer(hidden_shape, dim_out)
+            layers.append(layer)
+            activation_fns.append(NONLINEARITIES[nonlinearity])
+            hidden_shape = dim_out
+
+        self.layers = nn.ModuleList(layers)
+        self.activation_fns = nn.ModuleList(activation_fns[:-1])
+        self.rank = rank
+
+    def _unpack_params(self, params):
+        return [params]
+
+    def _rank_k_bmm(self, x, u, v):
+
+        # bmm: z = torch.bmm(x,y) | x: (b, m, p), y: (b, p, n), z: (b, m, n))
+        # x: (b, 1, D_in), u: (b, D_in, k), v: (b, k, D_out)
+        xu = torch.bmm(x[:, None], u.view(x.shape[0], x.shape[-1], self.rank))  # (b, 1, k)
+        xuv = torch.bmm(xu, v.view(x.shape[0], self.rank, -1))  # (b, 1, D_out)
+        return xuv[:, 0]
+
+    def forward(self, t, y, am_params):
+        dx = y
+        for l, (layer, in_dim, out_dim) in enumerate(zip(self.layers, self.input_dims, self.output_dims)):
+            # am_params shape: (D_in + D_out) * rank + D_out
+            this_u, am_params = am_params[:, :in_dim * self.rank], am_params[:, in_dim * self.rank:]
+            this_v, am_params = am_params[:, :out_dim * self.rank], am_params[:, out_dim * self.rank:]
+            this_bias, am_params = am_params[:, :out_dim], am_params[:, out_dim:]
+
+            # Previous output becomes current input
+            xw = layer(t, dx)
+            xw_am = self._rank_k_bmm(dx, this_u, this_v)
+            dx = xw + xw_am + this_bias
+            # if not last layer, use nonlinearity
+            if l < len(self.layers) - 1:
+                dx = self.activation_fns[l](dx)
+        return dx
+
+
+def construct_amortized_odefunc(args, input_dim):
+
+    hidden_dims = get_hidden_dims(args)
+
+    diffeq = AmortizedLowRankODEnet(
+            hidden_dims=hidden_dims,
+            input_dim=input_dim,
+            layer_type=args.layer_type,
+            nonlinearity=args.nonlinearity,
+            rank=args.rank,
+        )
+
+    odefunc = layers.ODEfunc(
+        diffeq=diffeq,
+        divergence_fn=args.divergence_fn,
+        residual=args.residual,
+        rademacher=args.rademacher,
+    )
+
+    return odefunc
+
+
+class VAE_ODE_amortized(VAE):
+    
+    """ Subclass of VAE - replaces decoder with continuous normalizing flow, with
+        dynamics determined by a neural network, which is a function of z ~ q(z|x). 
+        Performs amortized variational inference; parameters of dynamics network are 
+        a function of z.
+
+        Sample x_0 from base distribution emitted by generative network
+        x_0 ~ p(x_0 | z)
+        x_0 -> CNF (with input-dependent dynamics) -> \hat{x}
+
+        Identical encoder logic to standard VAE. Allows density estimation of 
+        data x by computing the change in log-density via numerical integration
+        by black-box ODE solver. 
+
+        Variational inference is amortized. Instead of learning the parameters of the posterior
+        distribution for each data point, the input dependence of the posterior distribution
+        parameters is modelled through an encoder/decoder network. The flow parameters are 
+        treated as functions of the original datapoint. In the case of CNFs, this corresponds
+        to treating the parameters of the layers defining the flow dynamics,
+
+        dx/dt = f(x; \theta; t)
+
+        As functions of x themselves. Practically, the encoder/decoder network outputs a low-
+        rank matrix input-dependent update to a global weight matrix, and outputs an input-
+        dependence bias vector update to a global bias term. See equation 10 in [1].
+
+        [1]: FFJORD: Free-Form Continuous Dynamics for Scalable Reversible Generative Models
+             Will Grathwohl, Ricky T. Q. Chen, Jesse Bettencourt, Ilya Sutskever, David Duvenaud
+    """
+
+    def __init__(self, args):
+        super(VAE_ODE_amortized, self).__init__(args)
+        assert args.flow == 'cnf_amort', 'Must toggle amortized CNF option in arguments!'
+
+        dims = self.input_dim
+
+        # CNF model
+        self.odefuncs = nn.ModuleList([
+            construct_amortized_odefunc(args, args.z_size, self.amortization_type) for _ in range(args.num_blocks)
+        ])
+        self.q_am = self._amortized_layers(args)
+        assert len(self.q_am) == args.num_blocks or len(self.q_am) == 0
+
+        self.register_buffer('integration_times', torch.tensor([0.0, args.time_length]))
+
+        self.atol = args.atol
+        self.rtol = args.rtol
+        self.solver = args.solver
+
+
+    def _amortized_layers(self, args):
+        # e.g. hidden sequence size (D, D), input dim N, update rank k
+        # Note first input dim = final output dim
+        out_dims = get_hidden_dims(args)  # (D, D, N)
+        in_dims = (out_dims[-1],) + out_dims[:-1]  # (N, D, D)
+        params_size = (sum(in_dims) + sum(out_dims)) * args.rank + sum(out_dims)
+        return nn.ModuleList([nn.Linear(self.hidden_dim, params_size) for _ in range(args.num_blocks)])
+
+    def _get_transforms(self, model):
+
+        def sample_fn(z, logpz=None):
+            if logpz is not None:
+                return model(z, logpz, reverse=True)
+            else:
+                return model(z, reverse=True)
+
+        def density_fn(x, logpx=None):
+            if logpx is not None:
+                return model(x, logpx, reverse=False)
+            else:
+                return model(x, reverse=False)
+
+        return sample_fn, density_fn
+
+    def forward(self, x, sample=False):
+
+        latent_stats = self.encoder(x)
+        latent_sample = self.reparameterize(latent_stats)
+
+        # Parameters of base distribution - diagonal covariance Gaussian
+        x_stats = self.decoder(latent_sample)
+
+        # Amortized input-dependent flow parameters
+        h = x_stats['hidden'].view(-1, self.hidden_dim)
+        am_params = [q_am(h) for q_am in self.q_am]
+
+        delta_logp = torch.zeros(x.shape[0], 1).to(x)
+        
+
+
+        sample_fn, density_fn = self._get_transforms(self.cnf)
+
+        if sample is True:
+            # Return reconstructed sample from target density, reverse pass
+            # x_0 -> CNF^{-1} -> x_K
+            with torch.no_grad():
+                x0_sample = self.reparameterize_continuous(mu=x_stats['mu'], logvar=x_stats['logvar'])
+                x_hat = sample_fn(x0_sample)  # reverse pass
+                self.flow_output['x_flow'] = x_hat
+
+        else:
+            # Invert CNF to fit flow-based model to target density, by 
+            # transforming x to sample x_0 from base distribution
+            # x_K -> CNF -> x_0
+            zero = torch.zeros(x.shape[0], 1).to(x)
+            x_0, delta_logp = self.cnf(x, zero)
+            self.flow_output['x_flow'] = x_0
+            self.flow_output['log_det_jacobian'] = delta_logp  #.view(-1)
+
+        return x_stats, latent_sample, latent_stats, self.flow_output
 
 
 class realNVP_VAE(VAE):

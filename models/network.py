@@ -241,6 +241,8 @@ class ToyEncoder(nn.Module):
         
         # self.act = nn.ReLU(inplace=True)
         self.act = getattr(F, activation)
+        self.ht = nn.Hardtanh(min_val=-5, max_val=5)
+
 
     def forward(self, x):
 
@@ -248,12 +250,13 @@ class ToyEncoder(nn.Module):
         h = self.act(self.fc1(h))
         h = self.act(self.fc2(h))
         h = self.act(self.fc3(h))
-        h = self.act(self.fc4(h))
+        # h = self.act(self.fc4(h))
         latent_dist = {}
 
         mu = self.dense_mu(h)
         logvar = self.dense_logvar(h)
-        logvar = torch.clamp(logvar, min=-10, max=10)
+        logvar = torch.clamp(logvar, min=-5, max=5)
+            # post_logvar = self.ht(post_logvar)
 
         latent_dist['continuous'] = [mu, logvar]
         latent_dist['hidden'] = h
@@ -277,19 +280,21 @@ class ToyDecoder(nn.Module):
 
         # self.act = nn.ReLU(inplace=True)  # or nn.Tanh
         self.act = getattr(F, activation)
+        self.ht = nn.Hardtanh(min_val=-5, max_val=5)
 
     def forward(self, z):
         h = z.view(z.size(0), -1)
         h = self.act(self.fc1(h))
         h = self.act(self.fc2(h))
         h = self.act(self.fc3(h))
-        h = self.act(self.fc4(h))
+        # h = self.act(self.fc4(h))
 
         post_mu = self.dense_post_mu(h)
         post_logvar = self.dense_post_logvar(h)
-        post_logvar = torch.clamp(post_logvar, min=-10, max=10)
+        post_logvar = torch.clamp(post_logvar, min=-5, max=5)
+        # post_logvar = self.ht(post_logvar)
 
-        return dict(mu=post_mu, logvar=post_logvar)  # , hidden=h)
+        return dict(mu=post_mu, logvar=post_logvar, hidden=h)
 
 
 class NVP_net(nn.Module):
