@@ -69,6 +69,8 @@ def train(args, model, train_loader, test_loader, device,
     assert log_interval_p_epoch >= 2, 'Show logs more!'
     log_interval = args.n_data / args.batch_size // log_interval_p_epoch
     assert log_interval > 1, 'Need more time between logs!'
+    storage_dir = os.path.join(args.snapshot, 'storage')
+    helpers.makedirs(storage_dir)
     
     best_loss, best_test_loss, mean_epoch_loss = np.inf, np.inf, np.inf
     test_loader_iter = iter(test_loader)
@@ -106,6 +108,8 @@ def train(args, model, train_loader, test_loader, device,
             try:
                 recon, latent_sample, latent_dist, flow_output = model(data)
                 latent_stats = latent_dist['continuous']
+                
+
                 loss = loss_function(data, recon, latent_stats, storage=storage, training=True, latent_sample=latent_sample,
                     generative_factors=gen_factors, latent_dist=latent_dist, flow_output=flow_output)
                 optimizer.zero_grad()
@@ -131,10 +135,18 @@ def train(args, model, train_loader, test_loader, device,
                     test_loader_iter = iter(test_loader)
                     test_data, test_gen_factors = test_loader_iter.next()
 
+                # temporary check of logvar
+                z_logvar = latent_stats[-1]
+                x_logvar = recon['logvar']
+                logger.info('Z_LOGVAR avg. {}'.format(z_logvar.mean().item()))
+                logger.info('X_LOGVAR avg. {}'.format(x_logvar.mean().item()))
                 best_test_loss, epoch_test_loss = test(epoch, counter, test_data, test_gen_factors,
                                                        loss_function, device, model, epoch_test_loss, 
                                                        storage_test, best_test_loss, start_time, epoch_start_time,
                                                        log_interval_p_epoch, logger)
+
+                with open(os.path.join(storage_dir, 'storage_{}_tmp.pkl'.format(args.name)), 'wb') as handle:
+                    pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
                 # Visualization
                 vis.visualize_reconstruction(args, data, device, model, epoch, idx)
@@ -147,8 +159,7 @@ def train(args, model, train_loader, test_loader, device,
         logger.info('===>> Epoch {} | Mean train loss: {:.3f} | Mean test loss: {:.3f}'.format(epoch, 
             mean_epoch_loss, mean_test_loss))    
     
-    helpers.makedirs('storage')
-    with open('storage/storage_{}_{:%Y_%m_%d_%H:%M:%S}.pkl'.format(args.name, datetime.datetime.now()), 'wb') as handle:
+    with open(os.path.join(storage_dir, 'storage_{}_{:%Y_%m_%d_%H:%M:%S}.pkl'.format(args.name, datetime.datetime.now())), 'wb') as handle:
         pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
     ckpt_path = helpers.save_model(model, optimizer, mean_epoch_loss, args.checkpoints_save, epoch, device, args=args)

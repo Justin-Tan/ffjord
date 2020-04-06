@@ -227,6 +227,7 @@ class ToyEncoder(nn.Module):
     def __init__(self, latent_spec, input_dim=2, hidden_dim=256, activation='elu', **kwargs):
         super(ToyEncoder, self).__init__()
 
+        min_logvar, max_logvar = -4, 4
         self.input_dim = input_dim
         self.latent_dim = latent_spec['continuous']
         self.hidden_dim = hidden_dim
@@ -241,7 +242,7 @@ class ToyEncoder(nn.Module):
         
         # self.act = nn.ReLU(inplace=True)
         self.act = getattr(F, activation)
-        self.ht = nn.Hardtanh(min_val=-5, max_val=5)
+        self.ht = nn.Hardtanh(min_val=min_logvar, max_val=max_logvar)
 
 
     def forward(self, x):
@@ -255,8 +256,8 @@ class ToyEncoder(nn.Module):
 
         mu = self.dense_mu(h)
         logvar = self.dense_logvar(h)
-        logvar = torch.clamp(logvar, min=-5, max=5)
-            # post_logvar = self.ht(post_logvar)
+        # logvar = torch.clamp(logvar, min=min_logvar, max=max_logvar)
+        logvar = self.ht(logvar)
 
         latent_dist['continuous'] = [mu, logvar]
         latent_dist['hidden'] = h
@@ -268,6 +269,7 @@ class ToyDecoder(nn.Module):
     def __init__(self, latent_dim=10, output_dim=2, hidden_dim=256, activation='elu', **kwargs):
         super(ToyDecoder, self).__init__()
 
+        min_logvar, max_logvar = -4, 4
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.fc1 = nn.Linear(latent_dim, hidden_dim)
@@ -280,7 +282,7 @@ class ToyDecoder(nn.Module):
 
         # self.act = nn.ReLU(inplace=True)  # or nn.Tanh
         self.act = getattr(F, activation)
-        self.ht = nn.Hardtanh(min_val=-5, max_val=5)
+        self.ht = nn.Hardtanh(min_val=min_logvar, max_val=max_logvar)
 
     def forward(self, z):
         h = z.view(z.size(0), -1)
@@ -291,8 +293,8 @@ class ToyDecoder(nn.Module):
 
         post_mu = self.dense_post_mu(h)
         post_logvar = self.dense_post_logvar(h)
-        post_logvar = torch.clamp(post_logvar, min=-5, max=5)
-        # post_logvar = self.ht(post_logvar)
+        # post_logvar = torch.clamp(post_logvar, min=min_logvar, max=max_logvar)
+        post_logvar = self.ht(post_logvar)
 
         return dict(mu=post_mu, logvar=post_logvar, hidden=h)
 
