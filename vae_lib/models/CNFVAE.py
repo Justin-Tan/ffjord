@@ -381,6 +381,7 @@ class AmortizedBiasCNFVAE(AmortizedCNFVAE):
         return nn.ModuleList([nn.Linear(self.h_size, bias_size) for _ in range(args.num_blocks)])
 
 
+
 class AmortizedLowRankCNFVAE(AmortizedCNFVAE):
     amortization_type = "low_rank"
 

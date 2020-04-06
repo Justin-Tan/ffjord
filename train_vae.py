@@ -171,6 +171,7 @@ if __name__ == '__main__':
         choices=['dsprites', 'custom', 'dsprites_scream'], required=True)
     general.add_argument("-gpu", "--gpu", type=int, default=0, help="GPU ID.")
     general.add_argument("-lpe", "--logs_per_epoch", type=int, default=4, help="Number of times to report metrics per epoch.")
+    general.add_argument("-save_intv", "--save_interval", type=int, default=8, help="Number of epochs between checkpointing.")
     general.add_argument("-multigpu", "--multigpu", help="Toggle data parallel capability using torch DataParallel", action="store_true")
     general.add_argument('-bs', '--batch_size', type=int, default=2048, help='input batch size for training')
     general.add_argument('--save', type=str, default='experiments', help='Parent directory for stored information')
@@ -265,6 +266,7 @@ if __name__ == '__main__':
 
     args = helpers.setup_signature(args)
     logger = helpers.logger_setup(logpath=os.path.join(args.snapshot, 'logs'), filepath=os.path.abspath(__file__))
+    logger.info('Using GPU ID {}'.format(args.gpu))
 
     assert args.loss_type in args.LOSSES, 'Unrecognized loss type!'
     assert args.dataset in args.DATASETS, 'Unrecognized dataset!'
@@ -304,6 +306,7 @@ if __name__ == '__main__':
         args.input_dim = datasets.get_img_size(args.dataset)
     except AttributeError:
         args.input_dim = all_loader.dataset.input_dim
+    logger.info('Input Dimensions: {}'.format(args.input_dim))
 
     if args.dataset == 'custom':
         args.x_dist = 'normal'
