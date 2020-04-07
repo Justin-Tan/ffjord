@@ -51,7 +51,6 @@ class VAE(nn.Module):
         self.latent_spec = args.latent_spec
         self.is_discrete = ('discrete' in self.latent_spec.keys())
         self.latent_dim = self.latent_spec['continuous']
-        self.flow_output = {'log_det_jacobian': None, 'x_flow': None}
 
         if not hasattr(args, 'prior') or args.prior == 'normal':
             self.prior = distributions.Normal()
@@ -229,6 +228,8 @@ class VAE_ODE(VAE):
 
     def forward(self, x, sample=False):
 
+        flow_output = {'log_det_jacobian': None, 'x_flow': None}
+
         latent_stats = self.encoder(x)
         latent_sample = self.reparameterize(latent_stats)
 
@@ -243,7 +244,7 @@ class VAE_ODE(VAE):
             with torch.no_grad():
                 x0_sample = self.reparameterize_continuous(mu=x_stats['mu'], logvar=x_stats['logvar'])
                 x_hat = sample_fn(x0_sample)  # reverse pass
-                self.flow_output['x_flow'] = x_hat
+                flow_output['x_flow'] = x_hat
 
         else:
             # Invert CNF to fit flow-based model to target density, by 
@@ -251,10 +252,10 @@ class VAE_ODE(VAE):
             # x_K -> CNF -> x_0
             zero = torch.zeros(x.shape[0], 1).to(x)
             x_0, delta_logp = self.cnf(x, zero)
-            self.flow_output['x_flow'] = x_0
-            self.flow_output['log_det_jacobian'] = delta_logp  #.view(-1)
+            flow_output['x_flow'] = x_0
+            flow_output['log_det_jacobian'] = delta_logp  #.view(-1)
 
-        return x_stats, latent_sample, latent_stats, self.flow_output
+        return x_stats, latent_sample, latent_stats, flow_output
     
 def get_hidden_dims(args):
     return tuple(map(int, args.dims.split("-"))) + (args.input_dim,)
@@ -385,11 +386,12 @@ class VAE_ODE_amortized(VAE):
 
         # CNF model
         self.odefuncs = nn.ModuleList([
-            construct_amortized_odefunc(args, args.z_size, self.amortization_type) for _ in range(args.num_blocks)
+            construct_amortized_odefunc(args, args.input_dim) for _ in range(args.num_blocks)
         ])
         self.q_am = self._amortized_layers(args)
         assert len(self.q_am) == args.num_blocks or len(self.q_am) == 0
 
+        # If you have parameters in your model, which should be saved and restored in the state_dict, but not trained by the optimizer, you should register them as buffers.
         self.register_buffer('integration_times', torch.tensor([0.0, args.time_length]))
 
         self.atol = args.atol
@@ -423,6 +425,7 @@ class VAE_ODE_amortized(VAE):
 
     def forward(self, x, sample=False):
 
+        flow_output = {'log_det_jacobian': None, 'x_flow': None}
         latent_stats = self.encoder(x)
         latent_sample = self.reparameterize(latent_stats)
 
@@ -434,29 +437,33 @@ class VAE_ODE_amortized(VAE):
         am_params = [q_am(h) for q_am in self.q_am]
 
         delta_logp = torch.zeros(x.shape[0], 1).to(x)
-        
-
-
-        sample_fn, density_fn = self._get_transforms(self.cnf)
 
         if sample is True:
-            # Return reconstructed sample from target density, reverse pass
-            # x_0 -> CNF^{-1} -> x_K
             with torch.no_grad():
                 x0_sample = self.reparameterize_continuous(mu=x_stats['mu'], logvar=x_stats['logvar'])
-                x_hat = sample_fn(x0_sample)  # reverse pass
+                x_hat = 1
                 self.flow_output['x_flow'] = x_hat
-
         else:
-            # Invert CNF to fit flow-based model to target density, by 
-            # transforming x to sample x_0 from base distribution
-            # x_K -> CNF -> x_0
-            zero = torch.zeros(x.shape[0], 1).to(x)
-            x_0, delta_logp = self.cnf(x, zero)
-            self.flow_output['x_flow'] = x_0
-            self.flow_output['log_det_jacobian'] = delta_logp  #.view(-1)
+            y = x
+            for odefunc, am_param in zip(self.odefuncs, am_params):
+                am_param_unpacked = odefunc.diffeq._unpack_params(am_param)
+                odefunc.before_odeint()
+                states = odeint(
+                    odefunc,
+                    (y, delta_logp) + tuple(am_param_unpacked),
+                    self.integration_times.to(y),
+                    atol=self.atol,
+                    rtol=self.rtol,
+                    method=self.solver,
+                )
+                y, delta_logp = states[0][-1], states[1][-1]
 
-        return x_stats, latent_sample, latent_stats, self.flow_output
+            x_0 = y
+            flow_output['x_flow'] = x_0
+            flow_output['log_det_jacobian'] = delta_logp
+
+
+        return x_stats, latent_sample, latent_stats, flow_output
 
 
 class realNVP_VAE(VAE):
