@@ -9,10 +9,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+from torchdiffeq import odeint_adjoint as odeint
+
+# self imports
 from models import network
 from utils import math, distributions, initialization, helpers
 
 # ffjord imports
+import lib.layers as layers
 import lib.layers.diffeq_layers as diffeq_layers
 from lib.layers.odefunc import NONLINEARITIES
 from train_misc import build_model_tabular

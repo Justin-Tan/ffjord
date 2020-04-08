@@ -145,11 +145,12 @@ def train(args, model, train_loader, test_loader, device,
                                                        storage_test, best_test_loss, start_time, epoch_start_time,
                                                        log_interval_p_epoch, logger)
 
-                with open(os.path.join(storage_dir, 'storage_{}_tmp.pkl'.format(args.name)), 'wb') as handle:
-                    pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                if not args.smoke_test:
+                    with open(os.path.join(storage_dir, 'storage_{}_tmp.pkl'.format(args.name)), 'wb') as handle:
+                        pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-                # Visualization
-                vis.visualize_reconstruction(args, data, device, model, epoch, idx)
+                    # Visualization
+                    vis.visualize_reconstruction(args, data, device, model, epoch, idx)
 
                 model.train()
 
@@ -186,6 +187,7 @@ if __name__ == '__main__':
     general.add_argument("-multigpu", "--multigpu", help="Toggle data parallel capability using torch DataParallel", action="store_true")
     general.add_argument('-bs', '--batch_size', type=int, default=2048, help='input batch size for training')
     general.add_argument('--save', type=str, default='experiments', help='Parent directory for stored information')
+    general.add_argument('--smoke_test', action='store_true', help='Shut up and train! No extra metrics.')
     general.add_argument(
         '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'real_nvp', 'no_flow'], 
         help="""Type of flows to use in decoder of VAE, no flows can also be selected."""
@@ -329,9 +331,13 @@ if __name__ == '__main__':
         model = vae.realNVP_VAE(args)
     elif args.flow == 'cnf':
         model = vae.VAE_ODE(args)
+    elif args.flow == 'cnf_amort':
+        model = vae.VAE_ODE_amortized(args)
+
+    logger.info(model)
 
     n_gpus = torch.cuda.device_count()
-    if args.flow != 'cnf':
+    if 'cnf' not in args.flow:
         helpers.summary(model, input_size=[[args.input_dim]] if args.dataset=='custom' else args.input_dim, device='cpu')
 
     if n_gpus > 1 and args.multigpu is True:
