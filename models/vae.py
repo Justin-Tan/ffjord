@@ -435,20 +435,15 @@ class VAE_ODE_amortized(VAE):
 
         # Parameters of base distribution - diagonal covariance Gaussian
         x_stats = self.decoder(latent_sample)
-
+        x_0 = self.reparameterize_continuous(mu=x_stats['mu'], logvar=x_stats['logvar'])
         # Amortized input-dependent flow parameters
         h = x_stats['hidden'].view(-1, self.hidden_dim)
         am_params = [q_am(h) for q_am in self.q_am]
 
         delta_logp = torch.zeros(x.shape[0], 1).to(x)
+        y = x_0
 
-        if sample is True:
-            with torch.no_grad():
-                x0_sample = self.reparameterize_continuous(mu=x_stats['mu'], logvar=x_stats['logvar'])
-                x_hat = 1
-                self.flow_output['x_flow'] = x_hat
-        else:
-            y = x
+        def cnf_forward_pass(y, delta_logp, am_params):
             for odefunc, am_param in zip(self.odefuncs, am_params):
                 am_param_unpacked = odefunc.diffeq._unpack_params(am_param)
                 odefunc.before_odeint()
@@ -462,10 +457,18 @@ class VAE_ODE_amortized(VAE):
                 )
                 y, delta_logp = states[0][-1], states[1][-1]
 
-            x_0 = y
-            flow_output['x_flow'] = x_0
-            flow_output['log_det_jacobian'] = delta_logp
+            return y, delta_logp
 
+        if sample is True:
+            with torch.no_grad():
+                y, delta_logp = cnf_forward_pass(y, delta_logp, am_params)
+        else:
+            y, delta_logp = cnf_forward_pass(y, delta_logp, am_params)
+
+        x_hat = y
+
+        flow_output['x_flow'] = x_hat
+        flow_output['log_det_jacobian'] = -delta_logp
 
         return x_stats, latent_sample, latent_stats, flow_output
 
