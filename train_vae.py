@@ -179,8 +179,7 @@ if __name__ == '__main__':
 
     # General options
     general = parser.add_argument_group('General options')
-    general.add_argument("-n", "--name", default=args.name, help="Identifier for checkpoints and metrics.")
-    general.add_argument("-o", "--output_directory", default=directories.checkpoints, help="Directory to store checkpoints and logs.")
+    general.add_argument("-n", "--name", default=None, help="Identifier for checkpoints and metrics.")
     general.add_argument("-d", "--dataset", type=str, default='dsprites', help="Training dataset to use.",
         choices=['dsprites', 'custom', 'dsprites_scream'], required=True)
     general.add_argument("-gpu", "--gpu", type=int, default=0, help="GPU ID.")
@@ -188,11 +187,11 @@ if __name__ == '__main__':
     general.add_argument("-save_intv", "--save_interval", type=int, default=8, help="Number of epochs between checkpointing.")
     general.add_argument("-multigpu", "--multigpu", help="Toggle data parallel capability using torch DataParallel", action="store_true")
     general.add_argument('-bs', '--batch_size', type=int, default=2048, help='input batch size for training')
-    general.add_argument('--save', type=str, default='experiments', help='Parent directory for stored information')
+    general.add_argument('--save', type=str, default='experiments', help='Parent directory for stored information (checkpoints, logs, etc.)')
     general.add_argument('--smoke_test', action='store_true', help='Shut up and train! No extra metrics.')
     general.add_argument(
-        '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'real_nvp', 'no_flow'], 
-        help="""Type of flows to use in decoder of VAE, no flows can also be selected."""
+        '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'cnf_freeze_vae', 'real_nvp', 'no_flow'], 
+        help="""Type of flow to use in decoder of VAE, no flow can also be selected."""
     )
 
     # Optimization-related options
@@ -211,6 +210,7 @@ if __name__ == '__main__':
                        help="Lagrange multiplier for supervised component of loss.")
     model.add_argument("-s_idx", "--sensitive_latent_idx", type=int, nargs='+', default=args.sensitive_latent_idx,
                        help="Indices of latent dimensions corresponding to sensitive factors.")
+    model.add_argument("-ckpt", "--checkpoint_path", type=str, default=None, help="Path to checkpoint holding weights of trained VAE model.")
 
     # Beta-vae options
     beta_vae = parser.add_argument_group("Beta-VAE-related options")
@@ -258,9 +258,7 @@ if __name__ == '__main__':
     cnf_args.add_argument('--rademacher', type=eval, default=False, choices=[True, False])
     cnf_args.add_argument('--batch_norm', type=eval, default=True, choices=[True, False])
     cnf_args.add_argument('--bn_lag', type=float, default=0)
-
     cnf_args.add_argument('--evaluate', action='store_true')
-    cnf_args.add_argument('--model_path', type=str, default='')
 
     cmd_args = parser.parse_args()
 
@@ -276,10 +274,7 @@ if __name__ == '__main__':
     args_d.update(cmd_args_d)
     args = helpers.Struct(**args_d)
     args.latent_spec['continuous'] = cmd_args.latent_dim
-    if args.output_directory not in [directories.checkpoints, 'results']:
-        args.output_directory = os.path.join('checkpoints', args.output_directory)
 
-    args.name = '{}_{}'.format(args.loss_type, args.dataset)
     args = helpers.setup_signature(args)
     logger = helpers.logger_setup(logpath=os.path.join(args.snapshot, 'logs'), filepath=os.path.abspath(__file__))
     logger.info('SAVING LOGS/CHECKPOINTS/RECORDS TO {}'.format(args.snapshot))
@@ -339,7 +334,10 @@ if __name__ == '__main__':
         model = vae.VAE_ODE(args)
     elif args.flow == 'cnf_amort':
         model = vae.VAE_ODE_amortized(args)
-
+    elif args.flow == 'cnf_freeze_vae':
+        # Load trained VAE encoder/decoder. Decoder outputs base 
+        # distribution parameters for CNF, train CNF dynamics
+        args, model = load_model(args.checkpoint_path, device, cmd_args_d=cmd_args_d, partial=True)
     logger.info(model)
 
     n_gpus = torch.cuda.device_count()
@@ -351,7 +349,21 @@ if __name__ == '__main__':
         model = nn.DataParallel(model)
 
     model = model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    parameters = model.parameters()
+
+    vae_subnames = ['encoder', 'decoder', 'discriminator']
+    if args.flow == 'cnf_freeze_vae':
+        parameters = []
+        logger.info('Optimizing over:')
+        for name, param in model.named_parameters():
+            if not any(subname in name for subname in vae_subnames):
+                logger.info(name)
+                parameters.append(param)
+
+    optimizer = torch.optim.Adam(parameters, lr=args.learning_rate, weight_decay=args.weight_decay)
+
+    # optimizer = torch.optim.Adamax(parameters, lr=args.learning_rate, eps=1.e-7)
+
 
     try:
         args.latent_dim = model.latent_dim

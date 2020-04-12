@@ -234,14 +234,21 @@ class VAE_ODE(VAE):
     def forward(self, x, sample=False):
 
         flow_output = {'log_det_jacobian': None, 'x_flow': None}
-
-        latent_stats = self.encoder(x)
-        latent_sample = self.reparameterize(latent_stats)
-
-        # Parameters of base distribution - diagonal covariance Gaussian
-        x_stats = self.decoder(latent_sample)
-
         sample_fn, density_fn = self._get_transforms(self.cnf)
+
+        def _vae_forward(x):
+            latent_stats = self.encoder(x)
+            latent_sample = self.reparameterize(latent_stats)
+            # Parameters of base distribution - diagonal covariance Gaussian
+            x_stats = self.decoder(latent_sample)
+
+            return latent_stats, latent_sample, x_stats
+
+        if args.flow == 'cnf_freeze_vae':
+            with torch.no_grad():
+                latent_stats, latent_sample, x_stats = _vae_forward(x)
+        else:
+            latent_stats, latent_sample, x_stats = _vae_forward(x)
 
         if sample is True:
             # Return reconstructed sample from target density, reverse pass

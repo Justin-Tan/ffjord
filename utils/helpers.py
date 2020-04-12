@@ -140,22 +140,18 @@ def load_model(save_path, device, optimizer=None, prediction=True):
     args = checkpoint['args']
     args = Struct(**args)
 
-    # Backwards compatibility
-    if args.dataset == 'custom':
-        args.custom = True
-    if hasattr(args, 'sampling_bias') is False:
-        args.sampling_bias = False
-    if hasattr(args, 'flow_hidden_dim') is False:
-        args.flow_hidden_dim = 36
-
     try:
-        if args.use_flow is True:
-            model = vae.realNVP_VAE(args)
-        else:
+        if args.flow == 'no_flow':
             model = vae.VAE(args)
+        elif args.flow == 'real_nvp':
+            model = vae.realNVP_VAE(args)
+        elif args.flow == 'cnf':
+            model = vae.VAE_ODE(args)
+        elif args.flow == 'cnf_amort':
+            model = vae.VAE_ODE_amortized(args)
+        elif args.flow == 'cnf_freeze_vae':
     except AttributeError:
         model = vae.VAE(args)
-
 
     model.load_state_dict(checkpoint['model_state_dict'])
 
@@ -167,10 +163,6 @@ def load_model(save_path, device, optimizer=None, prediction=True):
     if optimizer is not None:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         return args, model.to(device), optimizer
-    
-    # Backwards compatibility
-    if hasattr(args, 'sampling_bias') is False:
-        args.sampling_bias = False
 
     return args, model.to(device)
 
