@@ -74,5 +74,5 @@ if args.supervision is True:
 if args.sampling_bias is True:
     args.identifier += '_biased'
     args.shuffle = False
-    
-args.name = '{}_{}_{}'.format(args.dataset, args.loss_type, args.identifier)
+      
+args.name = 'disVAE'

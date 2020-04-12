@@ -236,7 +236,7 @@ def downstream_train(args, device, logger, train_loader, test_loader, net, n_epo
         logger.info('Using latent space features')
         vae_model.train()
     else:
-        n_epochs = 3
+        n_epochs = 4
 
     test_loader_iter = iter(test_loader)
     start_time = time.time()
@@ -360,13 +360,13 @@ def post_logits(dataloader, device, logger, net, vae_model, sample_z=False, inde
     return logits, gen_factors_all, latents
 
 def downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, latent_features=True, index_features=True, 
-                       sample_z=False, leave_out=[1], notebook=False, n_epochs=8):
+                       sample_z=False, leave_out=[1], notebook=False, n_epochs=1):
 
 
     logger.info('Omitting dimensions {}'.format(leave_out))
 
     if not isinstance(leave_out, list):
-        leave_out = list(leave_out)
+        leave_out = list([leave_out])
 
     try:
         feature_idx = list(set(range(model.latent_dim)).difference(leave_out)) if index_features is True else list(range(model.latent_dim))
@@ -485,14 +485,14 @@ def metric_custom(args, model, device, logger, gpu_id=1, sample_latents=True,
     
     
     # With Mbc dimension. 
+    jsd_mbc, jsd_dE_mbc, auc_mbc = None, None, None
+
     if evaluate_with_mbc is True:
-        jsd_mbc, jsd_dE, auc_mbc, df_mbc = downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, index_features=False, notebook=notebook, n_epochs=4)
-    else:
-        jsd_mbc, jsd_dE_mbc, auc_mbc = None, None, None
+        jsd_mbc, jsd_dE, auc_mbc, df_mbc = downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, index_features=False, notebook=notebook)
     
     # Omit Mbc dimension. Supervised: constrained dimension. Unsupervised: Dimension with highest MI w/ Mbc.
     if args.supervision is False:
-        omit_idx = int(top_mi_idx_discrete)
+        omit_idx = [int(i) for i in top_mi_idx_discrete]
         logger.info('Omitting latent dimension {}'.format(str(omit_idx)))
     else:
         omit_idx = args.sensitive_latent_idx
@@ -501,19 +501,22 @@ def metric_custom(args, model, device, logger, gpu_id=1, sample_latents=True,
     
     args_d = dict((n, getattr(args, n)) for n in dir(args) if not (n.startswith('__') or 'logger' in n))
     args_d.pop('DATASETS'); args_d.pop('LOSSES')
+    print(jsd_mbc)
+    # print(jsd_dE_mbc)
+    print(auc_mbc)
     metrics_out = {'MIG_discrete': discrete_metric, 'JSD_metric_incomplete': jsd, 'JSD_metric_dE_incomplete': jsd_dE, 'AUC_incomplete': auc, 'JSD_metric_complete': jsd_mbc, 
             'JSD_metric_dE_complete': jsd_dE_mbc, 'AUC_complete': auc_mbc, 'args': args_d, 'ckpt': args.ckpt, 'storage': storage}
 
     save_path = 'disentanglement_metric_custom_{}_{:%Y_%m_%d_%H:%M}.log'.format(args.name, datetime.datetime.now())
     # df_mbc.to_hdf(save_path.replace('.log', '.hdf'), key='df')
-    df.to_hdf(os.path.join('results', save_path.replace('.log', '.hdf')), key='df')
+    df.to_hdf(os.path.join(args.snapshot, save_path.replace('.log', '.hdf')), key='df')
     logger.info('Saving to {}'.format(save_path))
     logger.info(metrics_out)
 
     try:
-        helpers.save_metadata(metrics_out, args.output_directory, filename=save_path)
+        helpers.save_metadata(metrics_out, args.snapshot, filename=save_path)
     except AttributeError:
-        helpers.save_metadata(metrics_out, 'results', filename=save_path)
+        helpers.save_metadata(metrics_out, 'experiments', filename=save_path)
     
     if evaluate_with_mbc is True:
         return metrics_out, df_mbc, df
@@ -699,9 +702,9 @@ def mutual_info_metric_shapes(args, model, device, logger, storage=None, gpu_id=
     logger.info(metrics_out)
 
     try:
-        helpers.save_metadata(metrics_out, args.output_directory, filename=save_path)
+        helpers.save_metadata(metrics_out, args.snapshot, filename=save_path)
     except AttributeError:
-        helpers.save_metadata(metrics_out, 'results', filename=save_path)
+        helpers.save_metadata(metrics_out, 'experiments', filename=save_path)
 
     return metric, discrete_metric, marginal_entropies, cond_entropies, z_v_mapping
 

@@ -65,7 +65,7 @@ def test(epoch, counter, data, gen_factors, loss_function, device, model, epoch_
 def train(args, model, train_loader, test_loader, device, 
           optimizer, storage, storage_test, logger, log_interval_p_epoch=4):
     
-    print('Using device', device)
+    logger.info('Using device {}'.format(device))
     assert log_interval_p_epoch >= 2, 'Show logs more!'
     log_interval = args.n_data / args.batch_size // log_interval_p_epoch
     assert log_interval > 1, 'Need more time between logs!'
@@ -145,12 +145,14 @@ def train(args, model, train_loader, test_loader, device,
                                                        storage_test, best_test_loss, start_time, epoch_start_time,
                                                        log_interval_p_epoch, logger)
 
-                if not args.smoke_test:
-                    with open(os.path.join(storage_dir, 'storage_{}_tmp.pkl'.format(args.name)), 'wb') as handle:
-                        pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                if args.smoke_test:
+                   return None 
 
-                    # Visualization
-                    vis.visualize_reconstruction(args, data, device, model, epoch, idx)
+                with open(os.path.join(storage_dir, 'storage_{}_tmp.pkl'.format(args.name)), 'wb') as handle:
+                    pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+                # Visualization
+                vis.visualize_reconstruction(args, data, device, model, epoch, idx)
 
                 model.train()
 
@@ -277,6 +279,7 @@ if __name__ == '__main__':
     if args.output_directory not in [directories.checkpoints, 'results']:
         args.output_directory = os.path.join('checkpoints', args.output_directory)
 
+    args.name = '{}_{}'.format(args.loss_type, args.dataset)
     args = helpers.setup_signature(args)
     logger = helpers.logger_setup(logpath=os.path.join(args.snapshot, 'logs'), filepath=os.path.abspath(__file__))
     logger.info('SAVING LOGS/CHECKPOINTS/RECORDS TO {}'.format(args.snapshot))
@@ -301,8 +304,10 @@ if __name__ == '__main__':
 
 
     if args.supervision is False:
+        logger.info('Supervision is OFF')
         train_loader = all_loader
     else:
+        logger.info('Supervision is ON')
         train_loader = datasets.get_dataloaders(args.dataset,
                                     batch_size=args.batch_size,
                                     logger=logger,
@@ -313,6 +318,7 @@ if __name__ == '__main__':
         K = all_loader.dataset.n_gen_factors
         if len(args.sensitive_latent_idx) > K:
             args.sensitive_latent_idx = args.sensitive_latent_idx[:K]
+        logger.info('Applying supervision to the following latent indices: {}'.format(args.sensitive_latent_idx))
 
     args.n_data = len(train_loader.dataset)
 
@@ -357,7 +363,7 @@ if __name__ == '__main__':
 
     args_d = dict((n, getattr(args, n)) for n in dir(args) if not (n.startswith('__') or 'logger' in n))
     metadata.update(args_d)
-    print(metadata)
+    logger.info(metadata)
 
 
     """

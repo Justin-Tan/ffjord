@@ -249,7 +249,7 @@ class FactorVAE_loss(BaseLoss):
         reconstruction, latent_sample, latent_dist, flow_output = model(data_VAE)
         latent_stats = latent_dist['continuous']
 
-        recon_loss = _reconstruction_loss(data, reconstruction, distribution=self.distribution,
+        recon_loss = _reconstruction_loss(data_VAE, reconstruction, distribution=self.distribution,
                 x_dist=self.x_dist, x_stats=reconstruction, flow_type=self.flow, flow_output=flow_output,
                 latent_stats=latent_stats, latent_sample=latent_sample)
         kl_loss = _kl_divergence_q_prior_normal(*latent_stats)
@@ -576,7 +576,7 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
                 x_flow_inv, log_det_jacobian_inv = flow_output['x_flow_inv'], flow_output['log_det_jacobian_inv']
                 assert log_det_jacobian_inv is not None, 'Must supply determinant of transformation Jacobian!'
                 log_pxCz = _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv)
-            elif flow_type == 'cnf':  # use VAE-ODE class 
+            elif flow_type == 'cnf' or flow_type == 'cnf_amort':  # use VAE-ODE class 
                 x_flow, delta_logp = flow_output['x_flow'], flow_output['log_det_jacobian']
                 assert delta_logp is not None, 'Must supply determinant of transformation Jacobian!'
                 log_pxCz = _ffjord_log_density(x_flow, delta_logp, x_stats)

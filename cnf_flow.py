@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import time
 import pickle
+import datetime
 import argparse
 import itertools
 import numpy as np
@@ -72,6 +73,7 @@ parser.add_argument('--bn_lag', type=float, default=0)
 
 parser.add_argument('--early_stopping', type=int, default=32)
 parser.add_argument('--n_epochs', type=int, default=32)
+parser.add_argument('--max_iters', type=int, default=0)
 parser.add_argument('--batch_size', type=int, default=2048)
 parser.add_argument('--test_batch_size', type=int, default=2048)
 parser.add_argument('--lr', type=float, default=1e-3)
@@ -192,7 +194,7 @@ def compute_loss(x, model, batch_size=None):
 def train_ffjord(model, optimizer, device, logger, iterations=8000):
     print('Using device', device)
 
-    end = time.time()
+    start, end = time.time(), time.time()
     best_loss = float('inf')
     val_itr = 0
     n_vals_without_improvement = 0
@@ -213,6 +215,9 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
         for itr, (data, gen_factors) in enumerate(tqdm(train_loader, desc='Train'), 0):
             if args.early_stopping > 0 and n_vals_without_improvement > args.early_stopping:
+                break
+            if itr > args.max_iters and args.max_iters > 0:
+                logger.info("Stopping early - test run.")
                 break
 
             x = cvt(data)
@@ -349,6 +354,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
 
     log_message = '[TEST] Iter {} | Test Loss {:.3f} | NFE {:.0f}'.format(itr, test_loss.avg, test_nfe.avg)
     logger.info(log_message)
+    logger.info('Total Duration: {:.3f} s'.format(time.time() - start))
 
 if __name__ == '__main__':
 

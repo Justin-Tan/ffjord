@@ -55,6 +55,7 @@ class VAE(nn.Module):
         self.latent_spec = args.latent_spec
         self.is_discrete = ('discrete' in self.latent_spec.keys())
         self.latent_dim = self.latent_spec['continuous']
+        self.flow_output = {'log_det_jacobian': None, 'x_flow': None}
 
         if not hasattr(args, 'prior') or args.prior == 'normal':
             self.prior = distributions.Normal()
@@ -449,7 +450,7 @@ class VAE_ODE_amortized(VAE):
                 odefunc.before_odeint()
                 states = odeint(
                     odefunc,
-                    (y, delta_logp) + tuple(am_param_unpacked),
+                    (y, delta_logp) + tuple([torch.ones_like(am_param)]), # tuple(am_param_unpacked),
                     self.integration_times.to(y),
                     atol=self.atol,
                     rtol=self.rtol,

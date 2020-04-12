@@ -37,6 +37,11 @@ def makedirs(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
+def quick_restore_model(model, filename):
+    checkpt = torch.load(filename, map_location=lambda storage, loc: storage)
+    model.load_state_dict(checkpt["state_dict"])
+    return model
+
 def setup_signature(args):
 
     time_signature = '{:%Y_%m_%d_%H:%M}'.format(datetime.datetime.now()).replace(':', '_')
@@ -389,8 +394,8 @@ def jsd_metric(df, selection_fraction=0.005, nbins=32, dE_min=-0.25, dE_max=0.1,
 
     def _one_hot_encoding(x, nbins):
         x_one_hot = np.zeros((x.shape[0], nbins))
-        # x_one_hot[np.arange(x.shape[0]), x] = 1
-        x_one_hot[np.arange(x.shape[0]), np.max(x, nbins-1)] = 1
+        x_one_hot[np.arange(x.shape[0]), x] = 1
+        # x_one_hot[np.arange(x.shape[0]), np.max(x, nbins-1)] = 1
         x_one_hot_sum = np.sum(x_one_hot, axis=0)/x_one_hot.shape[0]
 
         return x_one_hot_sum
@@ -429,18 +434,18 @@ def jsd_metric(df, selection_fraction=0.005, nbins=32, dE_min=-0.25, dE_max=0.1,
     # Discretization
     if variable == 'B_Mbc':
         try:
-            bkg_pass_discrete = np.digitize(df_bkg_pass.B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins+1), right=False)-1
-            bkg_fail_discrete = np.digitize(df_bkg_fail.B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins+1), right=False)-1
+            bkg_pass_discrete = np.digitize(df_bkg_pass.B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins), right=False)-1
+            bkg_fail_discrete = np.digitize(df_bkg_fail.B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins), right=False)-1
         except AttributeError:
-            bkg_pass_discrete = np.digitize(df_bkg_pass._B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins+1), right=False)-1
-            bkg_fail_discrete = np.digitize(df_bkg_fail._B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins+1), right=False)-1
+            bkg_pass_discrete = np.digitize(df_bkg_pass._B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins), right=False)-1
+            bkg_fail_discrete = np.digitize(df_bkg_fail._B_Mbc, bins=np.linspace(mbc_min,mbc_max,nbins), right=False)-1
     elif variable =='dE':
         try:
-            bkg_pass_discrete = np.digitize(df_bkg_pass.B_deltaE, bins=np.linspace(dE_min,dE_max,nbins+1), right=False)-1
-            bkg_fail_discrete = np.digitize(df_bkg_fail.B_deltaE, bins=np.linspace(dE_min,dE_max,nbins+1), right=False)-1
+            bkg_pass_discrete = np.digitize(df_bkg_pass.B_deltaE, bins=np.linspace(dE_min,dE_max,nbins), right=False)-1
+            bkg_fail_discrete = np.digitize(df_bkg_fail.B_deltaE, bins=np.linspace(dE_min,dE_max,nbins), right=False)-1
         except AttributeError:
-            bkg_pass_discrete = np.digitize(df_bkg_pass._B_deltaE, bins=np.linspace(dE_min,dE_max,nbins+1), right=False)-1
-            bkg_fail_discrete = np.digitize(df_bkg_fail._B_deltaE, bins=np.linspace(dE_min,dE_max,nbins+1), right=False)-1
+            bkg_pass_discrete = np.digitize(df_bkg_pass._B_deltaE, bins=np.linspace(dE_min,dE_max,nbins), right=False)-1
+            bkg_fail_discrete = np.digitize(df_bkg_fail._B_deltaE, bins=np.linspace(dE_min,dE_max,nbins), right=False)-1
 
     bkg_pass_sum = _one_hot_encoding(bkg_pass_discrete, nbins)
     bkg_fail_sum = _one_hot_encoding(bkg_fail_discrete, nbins)
