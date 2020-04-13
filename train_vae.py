@@ -353,6 +353,9 @@ if __name__ == '__main__':
 
     vae_subnames = ['encoder', 'decoder', 'discriminator']
     if args.flow == 'cnf_freeze_vae':
+        # Load trained VAE encoder/decoder. Decoder outputs base 
+        # distribution parameters for CNF, freeze VAE parameters, 
+        # train CNF dynamics
         parameters = []
         logger.info('Optimizing over:')
         for name, param in model.named_parameters():
@@ -361,7 +364,6 @@ if __name__ == '__main__':
                 parameters.append(param)
 
     optimizer = torch.optim.Adam(parameters, lr=args.learning_rate, weight_decay=args.weight_decay)
-
     # optimizer = torch.optim.Adamax(parameters, lr=args.learning_rate, eps=1.e-7)
 
 

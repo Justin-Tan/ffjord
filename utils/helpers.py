@@ -135,25 +135,30 @@ def save_model_online(model, optimizer, epoch, save_dir, name):
             }, save_path)
     print('Model saved to path {}'.format(save_path))
     
-def load_model(save_path, device, optimizer=None, prediction=True):
+def load_model(save_path, device, current_args_d=None, optimizer=None, prediction=True, partial=False):
+
     checkpoint = torch.load(save_path)
-    args = checkpoint['args']
-    args = Struct(**args)
+    loaded_args_d = checkpoint['args']
+    vae_args_keys = ['dataset', 'loss_type', 'latent_dim', 'supervision', 'supervision_lagrange_m', 'sensitive_latent_idx', 'beta', 'gamma', 'gamma_fvae',
+    'alpha_btcvae', 'beta_btcvae', 'gamma_btcvae']
+    loaded_vae_args_d = {k: loaded_args_d[k] for k in vae_args_keys}
+    current_args_d.update(loaded_vae_args_d)
+    args = Struct(**current_args_d)
 
     try:
         if args.flow == 'no_flow':
             model = vae.VAE(args)
         elif args.flow == 'real_nvp':
             model = vae.realNVP_VAE(args)
-        elif args.flow == 'cnf':
+        elif args.flow == 'cnf' or args.flow == 'cnf_freeze_vae':
             model = vae.VAE_ODE(args)
         elif args.flow == 'cnf_amort':
             model = vae.VAE_ODE_amortized(args)
-        elif args.flow == 'cnf_freeze_vae':
+            
     except AttributeError:
         model = vae.VAE(args)
 
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(checkpoint['model_state_dict'], strict=not partial)
 
     if prediction:
         model.eval()
@@ -450,3 +455,8 @@ def jsd_metric(df, selection_fraction=0.005, nbins=32, dE_min=-0.25, dE_max=0.1,
     jsd_discrete = 0.5*kld_pass + 0.5*kld_fail
 
     return jsd_discrete
+
+cnf_args_keys = ['dims', 'num_blocks', 'time_length', 'train_T', 'divergence_fn',
+    'nonlinearity', 'rank', 'solver', 'atol', 'rtol', 'step_size', 'layer_type',
+    'test_solver', 'test_atol', 'test_rtol', 'residual', 'rademacher', 
+    'batch_norm', 'bn_lag', 'evaluate']
