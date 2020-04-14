@@ -45,7 +45,10 @@ def quick_restore_model(model, filename):
 def setup_signature(args):
 
     time_signature = '{:%Y_%m_%d_%H:%M}'.format(datetime.datetime.now()).replace(':', '_')
-    args.name = '{}_{}_{}_{}'.format(args.name, args.dataset, args.loss_type, time_signature)
+    if args.name is not None:
+        args.name = '{}_{}_{}_{}'.format(args.name, args.dataset, args.loss_type, time_signature)
+    else:
+        args.name = '{}_{}_{}'.format(args.dataset, args.loss_type, time_signature)
 
     if args.flow != 'no_flow':
         args.name = '{}_{}'.format(args.name, args.flow)
@@ -61,7 +64,7 @@ def setup_signature(args):
 
     if args.supervision is True:
         args.name = '{}_lambda{}'.format(args.name, args.supervision_lagrange_m)
-        args.name = '{}_sidx{}'.format(args.name, str(args.sensitive_latent_idx))
+        args.name = '{}_sidx{}'.format(args.name, ''.join(str(e) for e in args.sensitive_latent_idx))
 
     args.snapshot = os.path.join(args.save, args.name)
     makedirs(args.snapshot)
@@ -108,10 +111,10 @@ def save_model(model, optimizer, mean_loss, directory, epoch, device, args,
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=4, sort_keys=True)
             
-    model_path = os.path.join(directory, 'model_{}_epoch_{}_{:%Y_%m_%d_%H:%M}.pt'.format(model_name, epoch, datetime.datetime.now()))
+    model_path = os.path.join(directory, '{}_epoch_{}_{:%Y_%m_%d_%H:%M}.pt'.format(model_name, epoch, datetime.datetime.now()))
 
     if os.path.exists(model_path):
-        model_path = os.path.join(directory, 'model_{}_epoch_{}_{:%Y_%m_%d_%H:%M:%S}.pt'.format(model_name, epoch, datetime.datetime.now()))
+        model_path = os.path.join(directory, '{}_epoch_{}_{:%Y_%m_%d_%H:%M:%S}.pt'.format(model_name, epoch, datetime.datetime.now()))
 
     torch.save({'model_state_dict': model.module.state_dict() if args.multigpu is True else model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
@@ -135,14 +138,33 @@ def save_model_online(model, optimizer, epoch, save_dir, name):
             }, save_path)
     print('Model saved to path {}'.format(save_path))
     
-def load_model(save_path, device, current_args_d=None, optimizer=None, prediction=True, partial=False):
+def load_model(save_path, device, logger, current_args_d=None, optimizer=None, prediction=True, partial=False):
 
     checkpoint = torch.load(save_path)
     loaded_args_d = checkpoint['args']
-    vae_args_keys = ['dataset', 'loss_type', 'latent_dim', 'supervision', 'supervision_lagrange_m', 'sensitive_latent_idx', 'beta', 'gamma', 'gamma_fvae',
-    'alpha_btcvae', 'beta_btcvae', 'gamma_btcvae']
+    vae_args_keys = ['dataset', 'loss_type', 'latent_dim', 'supervision', 'supervision_lagrange_m', 'sensitive_latent_idx', 
+            'beta', 'gamma', 'gamma_fvae', 'alpha_btcvae', 'beta_btcvae', 'gamma_btcvae']
+    cnf_args_keys = ['dims', 'num_blocks', 'time_length', 'train_T', 'divergence_fn', 'nonlinearity', 'rank', 'solver', 
+            'atol', 'rtol', 'step_size', 'layer_type', 'test_solver', 'test_atol', 'test_rtol', 'residual', 'rademacher', 
+            'batch_norm', 'bn_lag']
+
+    for k,v in current_args_d.items():
+        try:
+            loaded_v = loaded_args_d[k]
+        except KeyError:
+            logger.warning('Argument {} (value {}) not present in recorded arguments. Overriding with current.'.format(k,v))
+            continue
+
+        if loaded_args_d[k] !=v:
+            logger.warning('Current argument {} (value {}) does not match recorded argument (value {}). May be overriden using recorded.'.format(k, v, loaded_args_d[k]))
+
     loaded_vae_args_d = {k: loaded_args_d[k] for k in vae_args_keys}
-    current_args_d.update(loaded_vae_args_d)
+    current_args_d.update(loaded_vae_args_d)  # Override current VAE-model related args with saved args
+
+    if current_args_d['flow'] != 'cnf_freeze_vae':
+        loaded_cnf_args_d = {k: loaded_args_d[k] for k in cnf_args_keys}
+        current_args_d.update(loaded_cnf_args_d) # Override current CNF-model related args with saved args
+
     args = Struct(**current_args_d)
 
     try:
@@ -169,21 +191,35 @@ def load_model(save_path, device, current_args_d=None, optimizer=None, predictio
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         return args, model.to(device), optimizer
 
-    return args, model.to(device)
+    return args, model # model.to(device)
 
-def logger_setup_alpha():
+def logger_setup(logpath, filepath, package_files=[]):
     formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s', 
                                   "%H:%M:%S")
     logger = logging.getLogger(__name__)
     logger.setLevel('INFO'.upper())
+
     stream = logging.StreamHandler()
     stream.setLevel('INFO'.upper())
     stream.setFormatter(formatter)
     logger.addHandler(stream)
+
+    info_file_handler = logging.FileHandler(logpath, mode="a")
+    info_file_handler.setLevel('INFO'.upper())
+    info_file_handler.setFormatter(formatter)
+    logger.addHandler(info_file_handler)
+
+    logger.info(filepath)
+
+    for f in package_files:
+        logger.info(f)
+        with open(f, "r") as package_f:
+            logger.info(package_f.read())
+
     return logger
 
 
-def logger_setup(logpath, filepath, package_files=[], displaying=True, saving=True, debug=False):
+def logger_setup_alpha(logpath, filepath, package_files=[], displaying=True, saving=True, debug=False):
     logger = logging.getLogger()
     if debug:
         level = logging.DEBUG
@@ -456,7 +492,3 @@ def jsd_metric(df, selection_fraction=0.005, nbins=32, dE_min=-0.25, dE_max=0.1,
 
     return jsd_discrete
 
-cnf_args_keys = ['dims', 'num_blocks', 'time_length', 'train_T', 'divergence_fn',
-    'nonlinearity', 'rank', 'solver', 'atol', 'rtol', 'step_size', 'layer_type',
-    'test_solver', 'test_atol', 'test_rtol', 'residual', 'rademacher', 
-    'batch_norm', 'bn_lag', 'evaluate']

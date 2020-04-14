@@ -85,7 +85,7 @@ def get_dataloaders(dataset, train=True, root=None, shuffle=True, pin_memory=Tru
 
 
     if sampling_bias is True:
-        print('Using biased sampler.')
+        logger.info('Using biased sampler.')
         sampler = dataset.get_biased_sampler()
     else:
         sampler = None
@@ -111,7 +111,7 @@ class Custom(torch.utils.data.TensorDataset):
              "val": "pivot_Mbc_val_small_scaled.h5"}
 
     def __init__(self, root='/data/cephfs/punim0011/jtan/data', logger=logging.getLogger(__name__), train=True,
-        evaluate=False, adversary=False, parquet=False, pivots=['_pivot'], auxillary=None, adv_n_classes=8, **kwargs):
+        evaluate=False, adversary=False, parquet=False, pivots=['_B_Mbc', '_B_deltaE'], auxillary=None, adv_n_classes=8, **kwargs):
 
         self.root = root
         self.logger = logger
@@ -130,19 +130,22 @@ class Custom(torch.utils.data.TensorDataset):
                 # Online validation
                 loadfile = self.val_data
 
+        sidx_map = {k: v for k,v in zip(range(1, len(pivots)+1), pivots)}
+        logger.info('Latent IDX mapping: {}'.format(sidx_map))
         if evaluate is True:
             df, features, labels, pivots = _load_custom_data(loadfile, evaluate=evaluate, adversary=adversary, parquet=parquet,
-                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes)
+                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes, logger=logger)
             self.df = df
         else:
             features, labels, pivots = _load_custom_data(loadfile, evaluate=evaluate, adversary=adversary, parquet=parquet,
-                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes)
+                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes, logger=logger)
 
         N = features.shape[0]
         K = pivots.shape[1]
         self.input_dim = features.shape[-1]
         self.n_gen_factors = K
 
+        # Note labels is always the zeroth index, pivots start from 1 onward
         gen_factors = torch.cat([torch.Tensor(labels).view(N,1), torch.Tensor(pivots).view(N,K)], axis=-1) 
 
         self.tensors = torch.Tensor(features), gen_factors
@@ -168,9 +171,9 @@ class DisentangledDataset(Dataset, abc.ABC):
         self.logger = logger
 
         if not os.path.isdir(root):
-            self.logger.info("Downloading {} ...".format(str(type(self))))
+            self.print("Downloading {} ...".format(str(type(self))))
             self.download()
-            self.logger.info("Finished Downloading.")
+            self.print("Finished Downloading.")
 
     def __len__(self):
         return len(self.imgs)
@@ -276,7 +279,7 @@ class DSprites(DisentangledDataset):
 
         self.sampling_bias = sampling_bias
         if self.sampling_bias is True:
-            self.logger.info('Using biased DSprites version.')
+            self.print('Using biased DSprites version.')
             # self.files = {"all": "dsprites_biased.npz", "train": "dsprites_train_biased.npz", "test": "dsprites_test_biased.npz"}
             self.files = {"all": "dsprites.npz", "train": "dsprites_train.npz", "test": "dsprites_test.npz"}
 
@@ -287,7 +290,7 @@ class DSprites(DisentangledDataset):
         # print('All: {}\nTrain: {}\nTest: {}'.format(self.all_data, self.train_data, self.test_data))
 
         if os.path.isfile(os.path.join(root, self.files["train"])) is False:
-            self.logger.info('Creating splits in folder {}'.format(self.root))
+            self.print('Creating splits in folder {}'.format(self.root))
             self.create_splits(root=root)
 
         if kwargs['metrics'] is True:
@@ -516,12 +519,12 @@ class CelebA(DisentangledDataset):
             '{} file is corrupted.  Remove the file and try again.'.format(save_path)
 
         with zipfile.ZipFile(save_path) as zf:
-            self.logger.info("Extracting CelebA ...")
+            self.print("Extracting CelebA ...")
             zf.extractall(self.root)
 
         os.remove(save_path)
 
-        self.logger.info("Resizing CelebA ...")
+        self.print("Resizing CelebA ...")
         preprocess(self.train_data, size=type(self).img_size[1:])
 
     def __getitem__(self, idx):
@@ -581,9 +584,9 @@ class Chairs(datasets.ImageFolder):
         self.logger = logger
 
         if not os.path.isdir(root):
-            self.logger.info("Downloading {} ...".format(str(type(self))))
+            self.print("Downloading {} ...".format(str(type(self))))
             self.download()
-            self.logger.info("Finished Downloading.")
+            self.print("Finished Downloading.")
 
         super().__init__(self.train_data, transform=self.transforms)
 
@@ -594,7 +597,7 @@ class Chairs(datasets.ImageFolder):
         subprocess.check_call(["curl", type(self).urls["train"],
                                "--output", save_path])
 
-        self.logger.info("Extracting Chairs ...")
+        self.print("Extracting Chairs ...")
         tar = tarfile.open(save_path)
         tar.extractall(self.root)
         tar.close()
@@ -602,7 +605,7 @@ class Chairs(datasets.ImageFolder):
 
         os.remove(save_path)
 
-        self.logger.info("Preprocessing Chairs ...")
+        self.print("Preprocessing Chairs ...")
         preprocess(os.path.join(self.train_data, '*/*'),  # root/*/*/*.png structure
                    size=type(self).img_size[1:],
                    center_crop=(400, 400))
@@ -761,7 +764,7 @@ def omit_vars():
     return omit
 
 def _load_custom_data(filename, evaluate=False, adversary=False, parquet=False,
-    pivots=['_pivot'], auxillary=None, adv_n_classes=8):
+    pivots=['_pivot'], auxillary=None, adv_n_classes=8, logger=logging.getLogger(__name__)):
 
     """
     Loads tabular HEP dataset specified in experimental section of paper. 
@@ -786,8 +789,8 @@ def _load_custom_data(filename, evaluate=False, adversary=False, parquet=False,
 
     df_features = df.drop(auxillary, axis=1)
     df_features = df_features[smooth_vars()]  # only smooth variables
-    print('Data shape:', df_features.shape)
-    print('Features', df_features.columns.tolist())
+    logger.info('Data shape: {}'.format(df_features.shape))
+    logger.info('Features: {}'.format(df_features.columns.tolist()))
 
     pivots = ['_B_Mbc', '_B_deltaE']
     pivot_df = df[pivots]

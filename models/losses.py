@@ -17,8 +17,14 @@ from utils import distributions
 from utils.math import (log_density_gaussian, log_importance_weight_matrix, 
     matrix_log_density_gaussian)
 
-def get_loss_function(loss_type, args, **kwargs):
+def get_loss_function(loss_type, args, logger=None, **kwargs):
     """Return the correct loss function given the argparse arguments."""    
+
+    if args.flow == 'cnf_freeze_vae':
+        if logger is not None:
+            logger.info("Using reconstruction loss only, freezing VAE parameters.")
+        return reconstruction_loss(**kwargs)
+
     if loss_type == "VAE":
         return BetaVAE_loss(beta=1.0, **kwargs)
     elif loss_type == "beta_VAE":
@@ -62,6 +68,7 @@ class BaseLoss:
 
         if self.supervision is True:
             assert sensitive_latent_idx is not None, 'Must supply sensitive latent indices!'
+            assert len(sensitive_latent_idx) > 0, 'Must supply sensitive latent indices!'
             assert self.supervision_lagrange_m > 0, 'Warning: Supervision coefficient is zero.'
             print("Using supervised loss over dimensions", self.sensitive_latent_idx)
         
@@ -91,6 +98,29 @@ class BaseLoss:
         storage['reconstruction_loss'].append(recon_loss.item())
         storage['kl_loss'].append(kl_loss.item())
         storage['ELBO'].append(-recon_loss.item() - kl_loss.item())
+
+class reconstruction_loss(BaseLoss):
+    """
+    Only reconstruction loss E_{q(z|x)}[log p(x|z)]
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def __call__(self, data, reconstruction, latent_stats, storage, training=True, 
+            latent_sample=None, generative_factors=None, flow_output=None, **kwargs):
+        storage = self._precall(training, storage)
+
+        recon_loss = _reconstruction_loss(data, reconstruction, distribution=self.distribution,
+                x_dist=self.x_dist, x_stats=reconstruction, flow_type=self.flow, flow_output=flow_output,
+                latent_stats=latent_stats, latent_sample=latent_sample)
+        kl_loss = _kl_divergence_q_prior_normal(*latent_stats)
+
+        loss = recon_loss
+
+        if storage is not None:
+            self._record_losses(storage, loss, recon_loss, kl_loss)
+
+        return loss
 
 class BetaVAE_loss(BaseLoss):
     """
@@ -225,6 +255,8 @@ class FactorVAE_loss(BaseLoss):
         self.gamma = gamma
         self.device = device
         self.discriminator = network.Discriminator(**disc_kwargs).to(self.device)
+        print('Factor VAE discriminator model:')
+        print(self.discriminator)
         self.CE_loss = torch.nn.CrossEntropyLoss(reduction='mean')
         self.opt_D = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
         
@@ -496,7 +528,7 @@ class betaTC_sensitive_VAE_loss(BaseLoss):
         kl_term_original = self.alpha * I_xt + self.beta * tc_loss_sensitives + self.gamma * (dw_kl_loss_sensitives + kl_loss_nonsensitive)
         # kl_term_original = self.alpha * (I_xt - I_x_z_minus_t) + self.beta * tc_loss_sensitives + self.gamma * (dw_kl_loss_sensitives + kl_loss_nonsensitive)
 
-        loss = recon_loss  + kl_term_original  # + kl_term_original  # kl_term_original  # kl_term
+        loss = recon_loss + kl_term_original  # + kl_term_original  # kl_term_original  # kl_term
         
         if self.supervision is True:
             assert generative_factors is not None, 'Must supply generative factors for supervision.'
@@ -576,7 +608,7 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
                 x_flow_inv, log_det_jacobian_inv = flow_output['x_flow_inv'], flow_output['log_det_jacobian_inv']
                 assert log_det_jacobian_inv is not None, 'Must supply determinant of transformation Jacobian!'
                 log_pxCz = _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv)
-            elif flow_type == 'cnf' or flow_type == 'cnf_amort':  # use VAE-ODE class 
+            elif flow_type in ['cnf', 'cnf_amort', 'cnf_freeze_vae']:  # use VAE-ODE class 
                 x_flow, delta_logp = flow_output['x_flow'], flow_output['log_det_jacobian']
                 assert delta_logp is not None, 'Must supply determinant of transformation Jacobian!'
                 log_pxCz = _ffjord_log_density(x_flow, delta_logp, x_stats)
@@ -588,7 +620,7 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
 def _ffjord_log_density(x_flow, delta_logp, x_stats):
 
     # Compute log-prob of sample from base distribution
-    log_p0_xCz = log_density_gaussian(x_flow, mu=x_stats['mu'], logvar=x_stats['logvar']).sum(dim=1)
+    log_p0_xCz = log_density_gaussian(x_flow, mu=x_stats['mu'], logvar=x_stats['logvar']).view(x_flow.shape[0], -1).sum(dim=1, keepdim=True)
 
     # Compute log-prob of transformed data
     log_pxCz = log_p0_xCz - delta_logp

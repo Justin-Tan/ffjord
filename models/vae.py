@@ -19,7 +19,7 @@ from utils import math, distributions, initialization, helpers
 import lib.layers as layers
 import lib.layers.diffeq_layers as diffeq_layers
 from lib.layers.odefunc import NONLINEARITIES
-from train_misc import build_model_tabular
+from train_misc import build_model_tabular, set_cnf_options
 
 class VAE(nn.Module):
     
@@ -209,11 +209,12 @@ class VAE_ODE(VAE):
 
     def __init__(self, args):
         super(VAE_ODE, self).__init__(args)
-        assert args.flow == 'cnf', 'Must toggle CNF option in arguments!'
+        assert args.flow in ['cnf', 'cnf_freeze_vae'] , 'Must toggle CNF option in arguments!'
 
         dims = self.input_dim
+        self.flow = args.flow
         self.cnf = build_model_tabular(args, dims)
-
+        set_cnf_options(args, self.cnf)
 
     def _get_transforms(self, model):
 
@@ -244,7 +245,7 @@ class VAE_ODE(VAE):
 
             return latent_stats, latent_sample, x_stats
 
-        if args.flow == 'cnf_freeze_vae':
+        if self.flow == 'cnf_freeze_vae':
             with torch.no_grad():
                 latent_stats, latent_sample, x_stats = _vae_forward(x)
         else:

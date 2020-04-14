@@ -83,7 +83,7 @@ def train(args, model, train_loader, test_loader, device,
         prior, x_dist = model.module.prior, model.module.x_dist
         
         
-    loss_function = losses.get_loss_function(args.loss_type, args=args, log_interval=log_interval, device=device, flow_type=args.flow,
+    loss_function = losses.get_loss_function(args.loss_type, args=args, logger=logger, log_interval=log_interval, device=device, flow_type=args.flow,
                                              distribution=args.distribution, prior=prior, x_dist=x_dist, supervision=args.supervision,
                                              supervision_lagrange_m=args.supervision_lagrange_m, sensitive_latent_idx=args.sensitive_latent_idx)
 
@@ -119,12 +119,14 @@ def train(args, model, train_loader, test_loader, device,
                 # For losses that require an interior optimization loop
                 loss = loss_function.call_optimize(data, model, storage, optimizer, training=model.training,
                                                    generative_factors=gen_factors)
-
-            epoch_loss.append(loss.item())
+            except KeyboardInterrupt:
+                ckpt_path = helpers.save_model(model, optimizer, mean_epoch_loss, args.checkpoints_save, epoch, device, args=args)
+                return ckpt_path
 
             if idx % log_interval == 1 and idx > 1:
 
                 counter += 1
+                epoch_loss.append(loss.item())
                 mean_epoch_loss = np.mean(epoch_loss)
                 best_loss = helpers.log(storage, epoch, counter, mean_epoch_loss, loss.item(),
                                 best_loss, start_time, epoch_start_time, batch_size=data.shape[0],
@@ -232,11 +234,12 @@ if __name__ == '__main__':
 
     # Continuous-time normalizing flow options
     cnf_args = parser.add_argument_group("CNF - related options")
-    cnf_args.add_argument('--dims', type=str, default='256-256', help='Defines dynamics network architecture')
+    cnf_args.add_argument('--dims', type=str, default='256-256-256', help='Number of hidden units in FC network architecture defining dynamics dz/dt.')
     cnf_args.add_argument("--num_blocks", type=int, default=1, help='Number of stacked CNFs.')
     cnf_args.add_argument('--time_length', type=float, default=0.5)
     cnf_args.add_argument('--train_T', type=eval, default=False)
-    cnf_args.add_argument("--divergence_fn", type=str, default="approximate", choices=["brute_force", "approximate"])
+    cnf_args.add_argument("--divergence_fn", type=str, default="approximate", choices=["brute_force", "approximate"], 
+            help='Approximate uses Hutchinson trace estimator to compute divergence. brute_force calculates trace of JVP.')
     cnf_args.add_argument("--nonlinearity", type=str, default="softplus", choices=odefunc.NONLINEARITIES)
     cnf_args.add_argument('-r', '--rank', type=int, default=1)
 
@@ -312,6 +315,7 @@ if __name__ == '__main__':
 
         K = all_loader.dataset.n_gen_factors
         if len(args.sensitive_latent_idx) > K:
+            logger.warning('Number of generative factors ({}) exceeds length of specified latent indices ({})'.format(K, len(args.sensitive_latent_idx)))
             args.sensitive_latent_idx = args.sensitive_latent_idx[:K]
         logger.info('Applying supervision to the following latent indices: {}'.format(args.sensitive_latent_idx))
 
@@ -326,18 +330,23 @@ if __name__ == '__main__':
     if args.dataset == 'custom':
         args.x_dist = 'normal'
 
-    if args.flow == 'no_flow':
-        model = vae.VAE(args)
-    elif args.flow == 'real_nvp':
-        model = vae.realNVP_VAE(args)
-    elif args.flow == 'cnf':
-        model = vae.VAE_ODE(args)
-    elif args.flow == 'cnf_amort':
-        model = vae.VAE_ODE_amortized(args)
-    elif args.flow == 'cnf_freeze_vae':
-        # Load trained VAE encoder/decoder. Decoder outputs base 
-        # distribution parameters for CNF, train CNF dynamics
-        args, model = load_model(args.checkpoint_path, device, cmd_args_d=cmd_args_d, partial=True)
+    if args.checkpoint_path is not None:
+        # Restore model
+        logger.info('Restoring model from path: {}'.format(args.checkpoint_path))
+        args, model = helpers.load_model(args.checkpoint_path, device, logger, current_args_d=dictify(args), partial=False)
+    else:
+        if args.flow == 'no_flow':
+            model = vae.VAE(args)
+        elif args.flow == 'real_nvp':
+            model = vae.realNVP_VAE(args)
+        elif args.flow == 'cnf':
+            model = vae.VAE_ODE(args)
+        elif args.flow == 'cnf_amort':
+            model = vae.VAE_ODE_amortized(args)
+        elif args.flow == 'cnf_freeze_vae':
+            # Load trained VAE encoder/decoder. Decoder outputs base 
+            # distribution parameters for CNF, train CNF dynamics
+            args, model = helpers.load_model(args.checkpoint_path, device, logger, current_args_d=dictify(args), partial=True)
     logger.info(model)
 
     n_gpus = torch.cuda.device_count()
@@ -351,17 +360,21 @@ if __name__ == '__main__':
     model = model.to(device)
     parameters = model.parameters()
 
+    logger.info('Optimizing over:')
     vae_subnames = ['encoder', 'decoder', 'discriminator']
     if args.flow == 'cnf_freeze_vae':
         # Load trained VAE encoder/decoder. Decoder outputs base 
         # distribution parameters for CNF, freeze VAE parameters, 
         # train CNF dynamics
         parameters = []
-        logger.info('Optimizing over:')
         for name, param in model.named_parameters():
             if not any(subname in name for subname in vae_subnames):
                 logger.info(name)
                 parameters.append(param)
+    else:
+        for name, param in model.named_parameters():
+            logger.info(name)
+
 
     optimizer = torch.optim.Adam(parameters, lr=args.learning_rate, weight_decay=args.weight_decay)
     # optimizer = torch.optim.Adamax(parameters, lr=args.learning_rate, eps=1.e-7)

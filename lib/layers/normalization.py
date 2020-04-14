@@ -15,8 +15,8 @@ class MovingBatchNormNd(nn.Module):
         self.bn_lag = bn_lag
         self.register_buffer('step', torch.zeros(1))
         if self.affine:
-            self.weight = Parameter(torch.Tensor(num_features))
-            self.bias = Parameter(torch.Tensor(num_features))
+            self.bn_weight = Parameter(torch.Tensor(num_features))
+            self.bn_bias = Parameter(torch.Tensor(num_features))
         else:
             self.register_parameter('weight', None)
             self.register_parameter('bias', None)
@@ -32,8 +32,8 @@ class MovingBatchNormNd(nn.Module):
         self.running_mean.zero_()
         self.running_var.fill_(1)
         if self.affine:
-            self.weight.data.zero_()
-            self.bias.data.zero_()
+            self.bn_weight.data.zero_()
+            self.bn_bias.data.zero_()
 
     def forward(self, x, logpx=None, reverse=False):
         if reverse:
@@ -71,8 +71,8 @@ class MovingBatchNormNd(nn.Module):
         y = (x - used_mean) * torch.exp(-0.5 * torch.log(used_var + self.eps))
 
         if self.affine:
-            weight = self.weight.view(*self.shape).expand_as(x)
-            bias = self.bias.view(*self.shape).expand_as(x)
+            weight = self.bn_weight.view(*self.shape).expand_as(x)
+            bias = self.bn_bias.view(*self.shape).expand_as(x)
             y = y * torch.exp(weight) + bias
 
         if logpx is None:
@@ -85,8 +85,8 @@ class MovingBatchNormNd(nn.Module):
         used_var = self.running_var
 
         if self.affine:
-            weight = self.weight.view(*self.shape).expand_as(y)
-            bias = self.bias.view(*self.shape).expand_as(y)
+            weight = self.bn_weight.view(*self.shape).expand_as(y)
+            bias = self.bn_bias.view(*self.shape).expand_as(y)
             y = (y - bias) * torch.exp(-weight)
 
         used_mean = used_mean.view(*self.shape).expand_as(y)
@@ -101,7 +101,7 @@ class MovingBatchNormNd(nn.Module):
     def _logdetgrad(self, x, used_var):
         logdetgrad = -0.5 * torch.log(used_var + self.eps)
         if self.affine:
-            weight = self.weight.view(*self.shape).expand(*x.size())
+            weight = self.bn_weight.view(*self.shape).expand(*x.size())
             logdetgrad += weight
         return logdetgrad
 
