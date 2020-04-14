@@ -482,24 +482,23 @@ class VAE_ODE_amortized(VAE):
         return x_stats, latent_sample, latent_stats, flow_output
 
 
-class realNVP_VAE(VAE):
-    """ Subclass of VAE - implements invertible normalizing flows in the decoder.
+class discrete_flow_VAE(VAE):
+    """ Subclass of VAE - implements a sequence of invertible normalizing flows on
+        top of the base Gaussian decoder.
         Identical encoder logic to standard VAE. Allows density estimation of 
         data x = T(u) by computing p(T^{-1}(x)) + log |det J_{T^{-1}}(x)|}. """
 
     def __init__(self, args):
-        super(realNVP_VAE, self).__init__(args)
-        
-        # TODO: Expand possible invertible flows 
-        flow = distributions.InvertibleAffineFlow
+        super(discrete_flow_VAE, self).__init__(args)
         self.n_flows = args.flow_steps
+        self.input_dim = args.input_dim
+        self.hidden_dim = args.discrete_flow_hidden_dim
 
-        # Aggregate parameters from each transformation in the flow
-        parity = lambda n: True if n%2==0 else False
-        for k in range(self.n_flows):
-            flow_k = flow(input_dim=self.input_dim, parity=parity(k), hidden_dim=args.flow_hidden_dim)
-            self.add_module('flow_{}'.format(str(k)), flow_k)
-
+        # TODO: Expand possible invertible flows 
+        self.flow = distributions.DiscreteFlowModel(input_dim=self.input_dim,
+            hidden_dim=self.hidden_dim, n_flows=self.n_flows,
+            flow=distributions.InvertibleAffineFlow)
+            
 
     def forward(self, x, sample=False):
         latent_stats = self.encoder(x)
@@ -507,69 +506,24 @@ class realNVP_VAE(VAE):
 
         # Parameters of base distribution - diagonal covariance Gaussian
         x_stats = self.decoder(latent_sample)
+        # Sample from base distribution
+        x0 = self.reparameterize_continuous(mu=x_stats['mu'], logvar=x_stats['logvar'])
 
         if sample is True:
             # Return reconstructed sample from target density
             with torch.no_grad():
-                flow_output = self.forward_flow(x_stats)
+                # flow_output = self.forward_flow(x_stats)
+                flow_output = self.flow.forward(x0)
+                x_hat = flow_output['x_flow'][-1]
                 return x_stats, latent_sample, latent_stats, flow_output
         else:
             # Invert flow to fit flow-based model to target density
             # Note reversed order of flow, LDJ in backward output
-            inv_flow_output = self.backward_flow(x)
+            # inv_flow_output = self.backward_flow(x)
+            inv_flow_output = self.flow.backward(x)
             x0 = inv_flow_output['x_flow_inv'][-1]
             return x_stats, latent_sample, latent_stats, inv_flow_output
 
-
-    def forward_flow(self, x_stats):
-        """ Sample from target density by passing x0 sampled from
-            base distribution through forward flow, x = F(x_0). 
-            Used for sampling from trained model. """
-
-        # Sample x_0
-        x_0 = self.reparameterize_continuous(mu=x_stats['mu'], logvar=x_stats['logvar'])
-        batch_size = x_0.shape[0]
-        x_flow = [x_0]  # Sequence of residual flows. \hat{x} = x_flow[-1]
-
-        log_det_jacobian = torch.zeros(batch_size).type_as(x_0.data)
-
-        for k in range(self.n_flows):
-            flow_k = getattr(self, 'flow_{}'.format(str(k)))
-            x_k, log_det_jacobian_k = flow_k.forward(x_flow[k])
-            x_flow.append(x_k)
-            log_det_jacobian += log_det_jacobian_k
-
-        # Final approximation of target sample
-        x_K = x_flow[-1]
-
-        flow_output = {'log_det_jacobian': log_det_jacobian, 'x_flow': x_flow}
-
-        return flow_output 
-
-
-    def backward_flow(self, x):
-        """ Recover base x0 ~ N(\mu, \Sigma) by inverting 
-            flow transformations. x0 = F^{-1}(x) Used for density 
-            evaluation when computing likelihood term in VAE loss. """
-
-        x_flow_inv = [x]
-        batch_size = x.shape[0]
-        log_det_jacobian_inv = torch.zeros(batch_size).type_as(x.data)
-
-        # Sequence T^{-1}(x) = u ==> x -> x_{K-1} -> ... -> x_1 -> u
-        for k in range(self.n_flows)[::-1]:  # reverse order
-            idx = self.n_flows - (k+1)
-            flow_k = getattr(self, 'flow_{}'.format(str(k)))
-            x_k, log_det_jacobian_k = flow_k.invert(x_flow_inv[idx])
-            x_flow_inv.append(x_k)
-            log_det_jacobian_inv += log_det_jacobian_k
-
-        # Sample u = x_0 = T^{-1}(x) from base distribution 
-        x_0 = x_flow_inv[-1] 
-
-        inv_flow_output = {'log_det_jacobian_inv': log_det_jacobian_inv, 'x_flow_inv': x_flow_inv}
-
-        return inv_flow_output
 
 class PlanarVAE(VAE):
     """ Subclass of VAE - implements planar flows in the encoder.

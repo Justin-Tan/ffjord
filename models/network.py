@@ -302,7 +302,7 @@ class ToyDecoder(nn.Module):
 class NVP_net(nn.Module):
     """ Network for use for transforms in real-NVP """
 
-    def __init__(self, input_dim, output_dim, hidden_dim=128, activation='leaky_relu', scale=False):
+    def __init__(self, input_dim, output_dim, hidden_dim=64, activation='leaky_relu', scale=False):
         super(NVP_net, self).__init__()
 
         self.input_dim = input_dim
@@ -322,8 +322,7 @@ class NVP_net(nn.Module):
         h = x.view(-1, self.input_dim)
         h = self.act(self.fc1(h))
         h = self.act(self.fc2(h))
-
-        # h = self.act(self.fc3(h))
+        h = self.act(self.fc3(h))
 
         out = self.out(h)
         

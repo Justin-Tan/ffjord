@@ -192,7 +192,7 @@ if __name__ == '__main__':
     general.add_argument('--save', type=str, default='experiments', help='Parent directory for stored information (checkpoints, logs, etc.)')
     general.add_argument('--smoke_test', action='store_true', help='Shut up and train! No extra metrics.')
     general.add_argument(
-        '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'cnf_freeze_vae', 'real_nvp', 'no_flow'], 
+        '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'cnf_freeze_vae', 'discrete_flow', 'no_flow'], 
         help="""Type of flow to use in decoder of VAE, no flow can also be selected."""
     )
 
@@ -231,6 +231,12 @@ if __name__ == '__main__':
     btcvae.add_argument("-alpha_btcvae", "--alpha_btcvae", type=float, default=args.alpha_btcvae, help="Alpha coefficient in beta-TCVAE loss.")
     btcvae.add_argument("-beta_btcvae", "--beta_btcvae", type=float, default=args.beta_btcvae, help="Beta coefficient in beta-TCVAE loss.")
     btcvae.add_argument("-gamma_btcvae", "--gamma_btcvae", type=float, default=args.gamma_btcvae, help="Gamma coefficient in beta-TCVAE loss.")
+
+    # Discrete flow options
+    discrete_flow_args = parser.add_argument_group("Discrete flow - related options")
+    discrete_flow_args.add_argument("-flow_steps", "--flow_steps", type=int, default=16, help="Number of transformations in discrete flow.")
+    discrete_flow_args.add_argument("-discrete_flow_hidden_dim", "--discrete_flow_hidden_dim", type=int, default=64, 
+        help="Hidden dimension for networks defining discrete flow transformations")
 
     # Continuous-time normalizing flow options
     cnf_args = parser.add_argument_group("CNF - related options")
@@ -337,8 +343,8 @@ if __name__ == '__main__':
     else:
         if args.flow == 'no_flow':
             model = vae.VAE(args)
-        elif args.flow == 'real_nvp':
-            model = vae.realNVP_VAE(args)
+        elif args.flow == 'discrete_flow':
+            model = vae.discrete_flow_VAE(args)
         elif args.flow == 'cnf':
             model = vae.VAE_ODE(args)
         elif args.flow == 'cnf_amort':

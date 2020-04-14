@@ -603,8 +603,8 @@ def _reconstruction_loss(data, reconstruction=None, reconstruction_logits=None, 
             log_pxCz = x_dist.log_density(data, mu=x_stats['mu'], logvar=x_stats['logvar']).view(batch_size, -1).sum(1)
             # print(log_px)
         else:
-            assert flow_output is not None, 'Must specify normalizing flow'
-            if flow_type == 'real_nvp':
+            assert flow_output is not None, 'Must provide results from normalizing flow'
+            if flow_type == 'discrete_flow':
                 x_flow_inv, log_det_jacobian_inv = flow_output['x_flow_inv'], flow_output['log_det_jacobian_inv']
                 assert log_det_jacobian_inv is not None, 'Must supply determinant of transformation Jacobian!'
                 log_pxCz = _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv)
@@ -623,6 +623,7 @@ def _ffjord_log_density(x_flow, delta_logp, x_stats):
     log_p0_xCz = log_density_gaussian(x_flow, mu=x_stats['mu'], logvar=x_stats['logvar']).view(x_flow.shape[0], -1).sum(dim=1, keepdim=True)
 
     # Compute log-prob of transformed data
+    # delta_logp is the log-determinant of the Jacobian of the transformation
     log_pxCz = log_p0_xCz - delta_logp
 
     return log_pxCz
@@ -671,6 +672,8 @@ def _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv):
     # Base distribution is diagonal-covariance Gaussian - TODO: Expand possible base distributions
     # Sum over x_dim
     log_px0Cz = x_dist.log_density(x_0, mu=x_stats['mu'], logvar=x_stats['logvar']).view(batch_size, -1).sum(dim=1)
+    print('log_px shape', log_px0Cz.size())
+    print('ldj shape', log_det_jacobian_inv.size())
 
     # Sum LDJ over flow steps [1,...K]
     log_pxCz = log_px0Cz + log_det_jacobian_inv
