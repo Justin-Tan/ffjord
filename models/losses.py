@@ -672,8 +672,8 @@ def _flow_log_density(x_flow_inv, x_dist, x_stats, log_det_jacobian_inv):
     # Base distribution is diagonal-covariance Gaussian - TODO: Expand possible base distributions
     # Sum over x_dim
     log_px0Cz = x_dist.log_density(x_0, mu=x_stats['mu'], logvar=x_stats['logvar']).view(batch_size, -1).sum(dim=1)
-    print('log_px shape', log_px0Cz.size())
-    print('ldj shape', log_det_jacobian_inv.size())
+    # print('log_px shape', log_px0Cz.size())
+    # print('ldj shape', log_det_jacobian_inv.size())
 
     # Sum LDJ over flow steps [1,...K]
     log_pxCz = log_px0Cz + log_det_jacobian_inv

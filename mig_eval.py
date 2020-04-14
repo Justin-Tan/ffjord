@@ -360,7 +360,7 @@ def post_logits(dataloader, device, logger, net, vae_model, sample_z=False, inde
     return logits, gen_factors_all, latents
 
 def downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, latent_features=True, index_features=True, 
-                       sample_z=False, leave_out=[1], notebook=False, n_epochs=1):
+                       sample_z=False, leave_out=[1], notebook=False, n_epochs=8):
 
 
     logger.info('Omitting dimensions {}'.format(leave_out))
@@ -488,7 +488,7 @@ def metric_custom(args, model, device, logger, gpu_id=1, sample_latents=True,
     jsd_mbc, jsd_dE_mbc, auc_mbc = None, None, None
 
     if evaluate_with_mbc is True:
-        jsd_mbc, jsd_dE, auc_mbc, df_mbc = downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, index_features=False, notebook=notebook)
+        jsd_mbc, jsd_dE_mbc, auc_mbc, df_mbc = downstream_metrics(args, model, device, logger, train_loader, test_loader, all_loader, index_features=False, notebook=notebook)
     
     # Omit Mbc dimension. Supervised: constrained dimension. Unsupervised: Dimension with highest MI w/ Mbc.
     if args.supervision is False:
@@ -501,9 +501,6 @@ def metric_custom(args, model, device, logger, gpu_id=1, sample_latents=True,
     
     args_d = dict((n, getattr(args, n)) for n in dir(args) if not (n.startswith('__') or 'logger' in n))
     args_d.pop('DATASETS'); args_d.pop('LOSSES')
-    print(jsd_mbc)
-    # print(jsd_dE_mbc)
-    print(auc_mbc)
     metrics_out = {'MIG_discrete': discrete_metric, 'JSD_metric_incomplete': jsd, 'JSD_metric_dE_incomplete': jsd_dE, 'AUC_incomplete': auc, 'JSD_metric_complete': jsd_mbc, 
             'JSD_metric_dE_complete': jsd_dE_mbc, 'AUC_complete': auc_mbc, 'args': args_d, 'ckpt': args.ckpt, 'storage': storage}
 
@@ -724,9 +721,11 @@ if __name__ == '__main__':
     start_time = time.time()
     device = helpers.get_device()
 
-    args, model = helpers.load_model(cmd_args.ckpt, device)
+    ckpt_dir = os.path.dirname(cmd_args.ckpt)
+    logger = helpers.logger_setup(logpath=os.path.join(ckpt_dir,  'eval.log'), filepath=os.path.abspath(__file__))
+
+    args, model = helpers.load_model(cmd_args.ckpt, device, logger)
     args.ckpt = cmd_args.ckpt
-    logger = helpers.logger_setup()
     logger.info('Using {} samples to estimate entropies.'.format(cmd_args.n_samples))
 
     if args.dataset == 'dsprites':

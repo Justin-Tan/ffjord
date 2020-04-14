@@ -213,6 +213,56 @@ class PlanarFlow(nn.Module):
 
         return log_qzKCx
 
+
+class BatchNormFlow(nn.Module):
+    """ Implements forward and inverse batch
+        norm passes, as well as log determinant of
+        Jacobian of forward and inverse passes """
+    
+    def __init__(self, input_dim, momentum=0.05, eps=1e-5):
+        super(BatchNormFlow, self).__init__()
+        
+        self.log_gamma = nn.Parameter(torch.zeros(input_dim))
+        self.beta = nn.Parameter(torch.zeros(input_dim))
+        self.momentum = momentum
+        self.eps = eps
+
+        self.register_buffer('running_mean', torch.zeros(input_dim))
+        self.register_buffer('running_var', torch.ones(input_dim))
+        
+        
+    def forward(self, u):
+        """
+        Use recorded running mean/var to invert BN applied during
+        inverse pass.
+        """
+        mu, var = self.running_mean, self.running_var
+        
+        x = (u - self.beta) * torch.exp(-self.log_gamma) * torch.sqrt(var + self.eps) + mu
+        log_det_jacobian_inv = -torch.sum(self.log_gamma - 0.5 * torch.log(var + self.eps))
+
+        return x, log_det_jacobian_inv
+   
+        
+    def invert(self, x):
+        """
+        Apply BN using minibatch statistics, update running mean/var.
+        """
+        batch_mu = torch.mean(x, dim=0)
+        batch_var = torch.var(x, dim=0)
+        
+        self.running_mean.mul_(self.momentum)
+        self.running_var.mul_(self.momentum)
+
+        self.running_mean.add_(batch_mu.data * (1 - self.momentum))
+        self.running_var.add_(batch_var.data * (1 - self.momentum))
+        
+        x = torch.exp(self.log_gamma) * (x - batch_mu) * 1. / torch.sqrt(batch_var + self.eps) + self.beta
+        log_det_jacobian = torch.sum(self.log_gamma -0.5 * torch.log(batch_var + self.eps))
+        
+        return x, log_det_jacobian
+
+
 class MaskedLinear(nn.Linear):
     """ same as Linear except has a configurable mask on the weights """
     

@@ -52,6 +52,7 @@ def visualize_reconstruction(args, data, device, model, epoch, itr):
         else:  # using some variant of normalizing flow
             x_flow = flow_output['x_flow']
             if isinstance(x_flow, list):
+                # Discrete flow, sample at end of sequence
                 x_sample = flow_output['x_flow'][-1]
             else:
                 x_sample = x_flow

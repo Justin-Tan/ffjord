@@ -120,6 +120,7 @@ def train(args, model, train_loader, test_loader, device,
                 loss = loss_function.call_optimize(data, model, storage, optimizer, training=model.training,
                                                    generative_factors=gen_factors)
             except KeyboardInterrupt:
+                logger.warning('Exiting, saving and evaluating on test set.')
                 ckpt_path = helpers.save_model(model, optimizer, mean_epoch_loss, args.checkpoints_save, epoch, device, args=args)
                 return ckpt_path
 
@@ -354,6 +355,7 @@ if __name__ == '__main__':
             # distribution parameters for CNF, train CNF dynamics
             args, model = helpers.load_model(args.checkpoint_path, device, logger, current_args_d=dictify(args), partial=True)
     logger.info(model)
+    logger.info("Number of trainable parameters: {}".format(helpers.count_parameters(model)))
 
     n_gpus = torch.cuda.device_count()
     if 'cnf' not in args.flow:

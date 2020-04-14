@@ -42,6 +42,9 @@ def quick_restore_model(model, filename):
     model.load_state_dict(checkpt["state_dict"])
     return model
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 def setup_signature(args):
 
     time_signature = '{:%Y_%m_%d_%H:%M}'.format(datetime.datetime.now()).replace(':', '_')
@@ -148,24 +151,27 @@ def load_model(save_path, device, logger, current_args_d=None, optimizer=None, p
             'atol', 'rtol', 'step_size', 'layer_type', 'test_solver', 'test_atol', 'test_rtol', 'residual', 'rademacher', 
             'batch_norm', 'bn_lag']
 
-    for k,v in current_args_d.items():
-        try:
-            loaded_v = loaded_args_d[k]
-        except KeyError:
-            logger.warning('Argument {} (value {}) not present in recorded arguments. Overriding with current.'.format(k,v))
-            continue
+    args = Struct(**loaded_args_d)
 
-        if loaded_args_d[k] !=v:
-            logger.warning('Current argument {} (value {}) does not match recorded argument (value {}). May be overriden using recorded.'.format(k, v, loaded_args_d[k]))
+    if current_args_d is not None:
+        for k,v in current_args_d.items():
+            try:
+                loaded_v = loaded_args_d[k]
+            except KeyError:
+                logger.warning('Argument {} (value {}) not present in recorded arguments. Overriding with current.'.format(k,v))
+                continue
 
-    loaded_vae_args_d = {k: loaded_args_d[k] for k in vae_args_keys}
-    current_args_d.update(loaded_vae_args_d)  # Override current VAE-model related args with saved args
+            if loaded_args_d[k] !=v:
+                logger.warning('Current argument {} (value {}) does not match recorded argument (value {}). May be overriden using recorded.'.format(k, v, loaded_args_d[k]))
 
-    if current_args_d['flow'] != 'cnf_freeze_vae':
-        loaded_cnf_args_d = {k: loaded_args_d[k] for k in cnf_args_keys}
-        current_args_d.update(loaded_cnf_args_d) # Override current CNF-model related args with saved args
+        loaded_vae_args_d = {k: loaded_args_d[k] for k in vae_args_keys}
+        current_args_d.update(loaded_vae_args_d)  # Override current VAE-model related args with saved args
 
-    args = Struct(**current_args_d)
+        if current_args_d['flow'] != 'cnf_freeze_vae':
+            loaded_cnf_args_d = {k: loaded_args_d[k] for k in cnf_args_keys}
+            current_args_d.update(loaded_cnf_args_d) # Override current CNF-model related args with saved args
+
+        args = Struct(**current_args_d)
 
     try:
         if args.flow == 'no_flow':
@@ -276,7 +282,7 @@ def log(storage, epoch, counter, mean_epoch_loss, total_loss, best_loss, start_t
     if header == '[TRAIN]':
         report_f("Epoch {} | Mean epoch loss: {:.3f} | Total loss: {:.3f} | ELBO: {:.3f} | Reco Loss: {:.3f} | KL Loss: {:.3f} | "
                  "Rate: {} examples/s | Time: {:.1f} s | Improved: {}".format(epoch, mean_epoch_loss, total_loss, elbo, 
-                 reconstruction_loss, kl_loss, int(batch_size*counter / (log_interval * (time.time()-t0))), time.time()-start_time, improved))
+                 reconstruction_loss, kl_loss, int(batch_size*counter*log_interval / ((time.time()-t0))), time.time()-start_time, improved))
     else:
         report_f("Epoch {} | Mean epoch loss: {:.3f} | Total loss: {:.3f} | ELBO: {:.3f} | Reco Loss: {:.3f} | KL Loss: {:.3f} | "
                  "Time: {:.1f} s | Improved: {}".format(epoch, mean_epoch_loss, total_loss, elbo, reconstruction_loss,
