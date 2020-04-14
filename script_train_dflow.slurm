@@ -14,4 +14,4 @@
 module load Tensorflow/1.13.1-intel-2017.u2-GCC-6.2.0-CUDA10-Python-3.6.4-GPU
 
 # python3 cnf_flow.py --nonlinearity softplus --divergence_fn brute_force --num_blocks 2 --batch_norm True --save experiments/cnf_brute_2b
-python3 train_vae.py -d custom -l beta_TCVAE_sensitive -z 8 -beta_btcvae 4.0 -sv -lambda 256 -s_idx 1 2 -f discrete_flow -flow_steps 12 --discrete_flow_hidden_dim 64
+python3 train_vae.py -d custom -l beta_TCVAE_sensitive -z 8 -beta_btcvae 4.0 -sv -lambda 256 -s_idx 1 -f discrete_flow -flow_steps 12 --discrete_flow_hidden_dim 64
