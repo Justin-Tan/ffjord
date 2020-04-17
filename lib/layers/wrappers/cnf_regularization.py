@@ -17,12 +17,12 @@ class RegularizedODEfunc(nn.Module):
 
         with torch.enable_grad():
             x, logp = state[:2]
-            e_divf_jvp = state[-1]
             x.requires_grad_(True)
             logp.requires_grad_(True)
             dstate = self.odefunc(t, (x, logp))
             if len(state) > 2:
                 dx, dlogp = dstate[:2]
+                e_divf_jvp = dstate[-1]
                 reg_states = tuple(reg_fn(x, logp, dx, dlogp, SharedContext, e_divf_jvp) for reg_fn in self.regularization_fns)
                 return dstate + reg_states
             else:
@@ -34,7 +34,8 @@ class RegularizedODEfunc(nn.Module):
 
 def _batch_mean_squared(x):
     x = x.view(x.shape[0], -1)
-    return (x * x).sum(dim=1)
+    d = x.shape[1]
+    return (x * x).sum(dim=1) / d
 
 def _batch_root_mean_squared(tensor):
     tensor = tensor.view(tensor.shape[0], -1)
@@ -42,11 +43,10 @@ def _batch_root_mean_squared(tensor):
 
 def approx_jacobian_frobenius_regularization_sq_fn(x, logp, dx, dlogp, context, e_divf_jvp):
     del x, dx, logp, dlogp
-    e_divf_jvp.requires_grad_(True)
     approx_jac_F_sq = _batch_mean_squared(e_divf_jvp)
     return approx_jac_F_sq
 
-def dzdt_sq_fn(x, logp, dx, dlogp, context, **kwargs):
+def dzdt_sq_regularization_fn(x, logp, dx, dlogp, context, **kwargs):
     del x, logp, dlogp
     dzdt_sq = _batch_mean_squared(dx)
     return dzdt_sq

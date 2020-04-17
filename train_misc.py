@@ -122,7 +122,7 @@ REGULARIZATION_FNS = {
     "JdiagFrobint": reg_lib.jacobian_diag_frobenius_regularization_fn,
     "JoffdiagFrobint": reg_lib.jacobian_offdiag_frobenius_regularization_fn,
     "approxJFrobint": reg_lib.approx_jacobian_frobenius_regularization_sq_fn,
-    "l2intsq": reg_lib.dzdt_sq_regularization_fn
+    "l2int_sq": reg_lib.dzdt_sq_regularization_fn
 }
 
 INV_REGULARIZATION_FNS = {v: k for k, v in six.iteritems(REGULARIZATION_FNS)}
@@ -137,15 +137,17 @@ def append_regularization_to_log(log_message, regularization_fns, reg_states):
 def create_regularization_fns(args):
     regularization_fns = []
     regularization_coeffs = []
+    regularization_fns_dict = {}
 
     for arg_key, reg_fn in six.iteritems(REGULARIZATION_FNS):
         if getattr(args, arg_key) is not None:
             regularization_fns.append(reg_fn)
             regularization_coeffs.append(eval("args." + arg_key))
+            regularization_fns_dict[arg_key] = reg_fn
 
     regularization_fns = tuple(regularization_fns)
     regularization_coeffs = tuple(regularization_coeffs)
-    return regularization_fns, regularization_coeffs
+    return regularization_fns, regularization_coeffs, regularization_fns_dict
 
 
 def get_regularization(model, regularization_coeffs):
