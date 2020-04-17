@@ -121,6 +121,8 @@ REGULARIZATION_FNS = {
     "JFrobint": reg_lib.jacobian_frobenius_regularization_fn,
     "JdiagFrobint": reg_lib.jacobian_diag_frobenius_regularization_fn,
     "JoffdiagFrobint": reg_lib.jacobian_offdiag_frobenius_regularization_fn,
+    "approxJFrobint": reg_lib.approx_jacobian_frobenius_regularization_sq_fn,
+    "l2intsq": reg_lib.dzdt_sq_regularization_fn
 }
 
 INV_REGULARIZATION_FNS = {v: k for k, v in six.iteritems(REGULARIZATION_FNS)}

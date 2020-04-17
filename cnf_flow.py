@@ -86,6 +86,10 @@ parser.add_argument('--dl2int', type=float, default=None, help="int_t ||f^T df/d
 parser.add_argument('--JFrobint', type=float, default=None, help="int_t ||df/dx||_F")
 parser.add_argument('--JdiagFrobint', type=float, default=None, help="int_t ||df_i/dx_i||_F")
 parser.add_argument('--JoffdiagFrobint', type=float, default=None, help="int_t ||df/dx - df_i/dx_i||_F")
+parser.add_argument('--l2int_sq', type=float, default=0.01, help="int_t ||f||_2^2")
+parser.add_argument('--approxJFrobint', type=float, default=0.01, 
+    help="int_t ||f||_2^2. Approximate, using ||A||_F = tr(AA^T) and Hutchinson trace estimator.")
+
 
 parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--save', type=str, default='experiments/cnf')
@@ -367,7 +371,7 @@ if __name__ == '__main__':
     device = helpers.get_device()
 
     cvt = lambda x: x.type(torch.float32).to(device, non_blocking=True)
-    regularization_fns, regularization_coeffs = create_regularization_fns(args)
+    regularization_fns, regularization_coeffs, regularization_fns_dict = create_regularization_fns(args)
 
     train_loader, test_loader = get_data(args, logger)
     input_dim = train_loader.dataset.input_dim
