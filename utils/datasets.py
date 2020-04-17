@@ -79,9 +79,9 @@ def get_dataloaders(dataset, train=True, root=None, shuffle=True, pin_memory=Tru
     Dataset = get_dataset(dataset)
 
     if root is None:
-        dataset = Dataset(logger=logger, train=train, sampling_bias=sampling_bias, metrics=metrics, evaluate=evaluate)
+        dataset = Dataset(logger=logger, train=train, sampling_bias=sampling_bias, metrics=metrics, evaluate=evaluate, **kwargs)
     else:
-        dataset = Dataset(root=root, logger=logger, train=train, sampling_bias=sampling_bias, metrics=metrics, evaluate=evaluate)
+        dataset = Dataset(root=root, logger=logger, train=train, sampling_bias=sampling_bias, metrics=metrics, evaluate=evaluate, **kwargs)
 
 
     if sampling_bias is True:
@@ -111,7 +111,8 @@ class Custom(torch.utils.data.TensorDataset):
              "val": "pivot_Mbc_val_small_scaled.h5"}
 
     def __init__(self, root='/data/cephfs/punim0011/jtan/data', logger=logging.getLogger(__name__), train=True,
-        evaluate=False, adversary=False, parquet=False, pivots=['_B_Mbc', '_B_deltaE'], auxillary=None, adv_n_classes=8, **kwargs):
+        evaluate=False, adversary=False, parquet=False, pivots=['_B_Mbc', '_B_deltaE'], auxillary=None, adv_n_classes=8, 
+        signal_only=False, **kwargs):
 
         self.root = root
         self.logger = logger
@@ -134,11 +135,11 @@ class Custom(torch.utils.data.TensorDataset):
         logger.info('Latent IDX mapping: {}'.format(sidx_map))
         if evaluate is True:
             df, features, labels, pivots = _load_custom_data(loadfile, evaluate=evaluate, adversary=adversary, parquet=parquet,
-                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes, logger=logger)
+                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes, logger=logger, signal_only=signal_only)
             self.df = df
         else:
             features, labels, pivots = _load_custom_data(loadfile, evaluate=evaluate, adversary=adversary, parquet=parquet,
-                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes, logger=logger)
+                pivots=pivots, auxillary=auxillary, adv_n_classes=adv_n_classes, logger=logger, signal_only=signal_only)
 
         N = features.shape[0]
         K = pivots.shape[1]
@@ -764,7 +765,7 @@ def omit_vars():
     return omit
 
 def _load_custom_data(filename, evaluate=False, adversary=False, parquet=False,
-    pivots=['_pivot'], auxillary=None, adv_n_classes=8, logger=logging.getLogger(__name__)):
+    pivots=['_pivot'], auxillary=None, adv_n_classes=8, signal_only=False, logger=logging.getLogger(__name__)):
 
     """
     Loads tabular HEP dataset specified in experimental section of paper. 
@@ -781,6 +782,12 @@ def _load_custom_data(filename, evaluate=False, adversary=False, parquet=False,
 
     if evaluate is False:
         df = df.sample(frac=1).reset_index(drop=True)
+
+    if signal_only is True:
+        print('Restricting dataset to signal events only.')
+        n_original = df.shape[0]
+        df = df[df._label > 0.5].reset_index(drop=True)
+        print('Fraction of dataset: {:.3f}'.format(df.shape[0]/n_original))
 
     if auxillary is None:
         # Cleanup + omit variables prefixed with an underscore from training

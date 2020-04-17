@@ -153,14 +153,16 @@ def get_data(args, logger):
                                batch_size=args.batch_size,
                                logger=logger,
                                train=False,
-                               shuffle=False)
+                               shuffle=False,
+                               signal_only=True)
 
 
     train_loader = datasets.get_dataloaders(args.dataset,
                                 batch_size=args.batch_size,
                                 logger=logger,
                                 train=True,
-                                shuffle=True)
+                                shuffle=True,
+                                signal_only=True)
     args.n_data = len(train_loader.dataset)
 
     return train_loader, test_loader
@@ -286,7 +288,7 @@ def train_ffjord(model, optimizer, device, logger, iterations=8000):
                         val_nfe_meter.update(val_nfe)
 
                     # Visualization
-                    if (itr % args.viz_freq == 0) and (itr > 500):
+                    if (itr % args.viz_freq == 0) and epoch > 2:
                         val_x = torch.cat(val_x, axis=0).cpu().numpy()
                         val_z = cvt(torch.randn(val_x.shape))
 
@@ -370,8 +372,8 @@ if __name__ == '__main__':
     train_loader, test_loader = get_data(args, logger)
     input_dim = train_loader.dataset.input_dim
     # args.dims = '-'.join([str(args.hdim_factor * input_dim)] * args.nhidden)
-    args.dims = '256-256-256'
-    # args.dims = '512-512-512'
+    # args.dims = '256-256-256'
+    args.dims = '512-512-512'
 
     model = build_model_tabular(args, input_dim, regularization_fns).to(device)
     if args.spectral_norm: add_spectral_norm(model)
