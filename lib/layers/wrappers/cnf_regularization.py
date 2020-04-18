@@ -22,7 +22,7 @@ class RegularizedODEfunc(nn.Module):
             dstate = self.odefunc(t, (x, logp))
             if len(state) > 2:
                 dx, dlogp = dstate[:2]
-                e_divf_jvp = dstate[-1]
+                e_divf_jvp = self.odefunc.e_divf_jvp
                 reg_states = tuple(reg_fn(x, logp, dx, dlogp, SharedContext, e_divf_jvp=e_divf_jvp) for reg_fn in self.regularization_fns)
                 return dstate + reg_states
             else:
