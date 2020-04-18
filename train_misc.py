@@ -130,7 +130,7 @@ INV_REGULARIZATION_FNS = {v: k for k, v in six.iteritems(REGULARIZATION_FNS)}
 
 def append_regularization_to_log(log_message, regularization_fns, reg_states):
     for i, reg_fn in enumerate(regularization_fns):
-        log_message = log_message + " | " + INV_REGULARIZATION_FNS[reg_fn] + ": {:.8f}".format(reg_states[i].item())
+        log_message = log_message + " | " + INV_REGULARIZATION_FNS[reg_fn] + ": {:.4f}".format(reg_states[i].item())
     return log_message
 
 

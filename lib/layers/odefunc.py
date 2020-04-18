@@ -49,7 +49,7 @@ def divergence_approx(f, y, e=None):
     e_dzdx = torch.autograd.grad(f, y, e, create_graph=True)[0]
     e_dzdx_e = e_dzdx * e
     approx_tr_dzdx = e_dzdx_e.view(y.shape[0], -1).sum(dim=1)
-    return approx_tr_dzdx, e_dzdx_jvp
+    return approx_tr_dzdx, e_dzdx
 
 
 def sample_rademacher_like(y):
@@ -263,6 +263,7 @@ class ODEfunc(nn.Module):
         self.residual = residual
         self.rademacher = rademacher
         self.jac_frobenius_reg = jac_frobenius_reg
+        self.divergence_fn_flag = divergence_fn
 
         if divergence_fn == "brute_force":
             self.divergence_fn = divergence_bf
@@ -307,8 +308,10 @@ class ODEfunc(nn.Module):
             if not self.training and dy.view(dy.shape[0], -1).shape[1] == 2:
                 divergence = divergence_bf(dy, y).view(batchsize, 1)
             else:
-                if divergence_fn == "approximate":
-                    divergence, e_divf_jvp = self.divergence_fn(dy, y, e=self._e).view(batchsize, 1)
+                if self.divergence_fn_flag == "approximate":
+                    divergence, e_divf_jvp = self.divergence_fn(dy, y, e=self._e)
+                    divergence = divergence.view(batchsize, 1)
+                    # e_divf_jvp = e_divf_jvp.view(batchsize, 1)
                 else:
                     divergence = self.divergence_fn(dy, y, e=self._e).view(batchsize, 1)
                     e_divf_jvp = torch.zeros_like(y).requires_grad_(False)
@@ -316,7 +319,10 @@ class ODEfunc(nn.Module):
             dy = dy - y
             divergence -= torch.ones_like(divergence) * torch.tensor(np.prod(y.shape[1:]), dtype=torch.float32
                                                                      ).to(divergence)
-        return tuple([dy, -divergence] + [torch.zeros_like(s_).requires_grad_(True) for s_ in states[2:] + [e_divf_jvp]])
+        print('dy SIZE', dy.size())
+        print('divergence SIZE', divergence.size())
+        print('e_divf_jpv SIZE', e_divf_jvp.size())
+        return tuple([dy, -divergence, e_divf_jvp] + [torch.zeros_like(s_).requires_grad_(True) for s_ in states[2:]])
 
 
 class AutoencoderODEfunc(nn.Module):

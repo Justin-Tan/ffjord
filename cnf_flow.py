@@ -86,8 +86,8 @@ parser.add_argument('--dl2int', type=float, default=None, help="int_t ||f^T df/d
 parser.add_argument('--JFrobint', type=float, default=None, help="int_t ||df/dx||_F")
 parser.add_argument('--JdiagFrobint', type=float, default=None, help="int_t ||df_i/dx_i||_F")
 parser.add_argument('--JoffdiagFrobint', type=float, default=None, help="int_t ||df/dx - df_i/dx_i||_F")
-parser.add_argument('--l2int_sq', type=float, default=0.01, help="int_t ||f||_2^2")
-parser.add_argument('--approxJFrobint', type=float, default=0.01, 
+parser.add_argument('--l2int_sq', type=float, default=None, help="int_t ||f||_2^2")
+parser.add_argument('--approxJFrobint', type=float, default=None, 
     help="int_t ||f||_2^2. Approximate, using ||A||_F = tr(AA^T) and Hutchinson trace estimator.")
 
 
