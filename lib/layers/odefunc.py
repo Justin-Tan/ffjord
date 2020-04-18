@@ -319,9 +319,9 @@ class ODEfunc(nn.Module):
             dy = dy - y
             divergence -= torch.ones_like(divergence) * torch.tensor(np.prod(y.shape[1:]), dtype=torch.float32
                                                                      ).to(divergence)
-        print('dy SIZE', dy.size())
-        print('divergence SIZE', divergence.size())
-        print('e_divf_jvp SIZE', e_divf_jvp.size())
+        # print('dy SIZE', dy.size())
+        # print('divergence SIZE', divergence.size())
+        # print('e_divf_jvp SIZE', e_divf_jvp.size())
         self.e_divf_jvp = e_divf_jvp
         
         return tuple([dy, -divergence] + [torch.zeros_like(s_).requires_grad_(True) for s_ in states[2:]])

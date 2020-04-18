@@ -114,6 +114,7 @@ if args.layer_type == "blend":
     args.train_T = False
 
 logger.info(args)
+logger.info('USING SOLVER {}'.format(args.solver))
 ndecs = 0
 
 def get_transforms(model):
