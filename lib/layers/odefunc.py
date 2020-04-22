@@ -14,7 +14,7 @@ def divergence_bf(dx, y, **unused_kwargs):
     sum_diag = 0.
     for i in range(y.shape[1]):
         sum_diag += torch.autograd.grad(dx[:, i].sum(), y, create_graph=True)[0].contiguous()[:, i].contiguous()
-    return sum_diag.contiguous()
+    return sum_diag.contiguous(), torch.zeros_like(dx)
 
 
 # def divergence_bf(f, y, **unused_kwargs):
@@ -313,7 +313,7 @@ class ODEfunc(nn.Module):
                     divergence = divergence.view(batchsize, 1)
                     # e_divf_jvp = e_divf_jvp.view(batchsize, 1)
                 else:
-                    divergence = self.divergence_fn(dy, y, e=self._e).view(batchsize, 1)
+                    divergence, e_divf_jvp = self.divergence_fn(dy, y, e=self._e).view(batchsize, 1)
                     e_divf_jvp = torch.zeros_like(y).requires_grad_(False)
         if self.residual:
             dy = dy - y

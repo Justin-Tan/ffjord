@@ -194,7 +194,7 @@ def compute_loss(x, model, batch_size=None):
     # compute log q(z)
     # logpz = standard_normal_logprob(z).sum(1, keepdim=True)
     logpz = standard_normal_logprob(z).view(z.shape[0], -1).sum(1, keepdim=True)  # logp(z)
-    logpx = logpz - delta_logp
+    logpx = logpz + delta_logp
     loss = -torch.mean(logpx)
     return loss
 
