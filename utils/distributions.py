@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils import math
+from utils import math, normalization
 from models import network
 
 EPS = 1e-8
@@ -214,55 +214,6 @@ class PlanarFlow(nn.Module):
         return log_qzKCx
 
 
-class BatchNormFlow(nn.Module):
-    """ Implements forward and inverse batch
-        norm passes, as well as log determinant of
-        Jacobian of forward and inverse passes """
-    
-    def __init__(self, input_dim, momentum=0.05, eps=1e-5):
-        super(BatchNormFlow, self).__init__()
-        
-        self.log_gamma = nn.Parameter(torch.zeros(input_dim))
-        self.beta = nn.Parameter(torch.zeros(input_dim))
-        self.momentum = momentum
-        self.eps = eps
-
-        self.register_buffer('running_mean', torch.zeros(input_dim))
-        self.register_buffer('running_var', torch.ones(input_dim))
-        
-        
-    def forward(self, u):
-        """
-        Use recorded running mean/var to invert BN applied during
-        inverse pass.
-        """
-        mu, var = self.running_mean, self.running_var
-        
-        x = (u - self.beta) * torch.exp(-self.log_gamma) * torch.sqrt(var + self.eps) + mu
-        log_det_jacobian_inv = -torch.sum(self.log_gamma - 0.5 * torch.log(var + self.eps))
-
-        return x, log_det_jacobian_inv
-   
-        
-    def invert(self, x):
-        """
-        Apply BN using minibatch statistics, update running mean/var.
-        """
-        batch_mu = torch.mean(x, dim=0)
-        batch_var = torch.var(x, dim=0)
-        
-        self.running_mean.mul_(self.momentum)
-        self.running_var.mul_(self.momentum)
-
-        self.running_mean.add_(batch_mu.data * (1 - self.momentum))
-        self.running_var.add_(batch_var.data * (1 - self.momentum))
-        
-        x = torch.exp(self.log_gamma) * (x - batch_mu) * 1. / torch.sqrt(batch_var + self.eps) + self.beta
-        log_det_jacobian = torch.sum(self.log_gamma -0.5 * torch.log(batch_var + self.eps))
-        
-        return x, log_det_jacobian
-
-
 class MaskedLinear(nn.Linear):
     """ same as Linear except has a configurable mask on the weights """
     
@@ -470,13 +421,15 @@ class DiscreteFlowModel(nn.Module):
         self.hidden_dim = hidden_dim
         self.base_dist = base_dist
         
-        BN_flow = BatchNormFlow
+        # BN_flow = normalization.BatchNormFlow
+        BN_flow = normalization.MovingBatchNorm1d
         parity = lambda n: True if n%2==0 else False
         
         # Aggregate parameters from each transformation in the flow
         for k in range(self.n_flows):
             flow_k = flow(input_dim=self.input_dim, parity=parity(k), hidden_dim=self.hidden_dim)
-            BN_k = BN_flow(input_dim=self.input_dim)
+            # BN_k = BN_flow(input_dim=self.input_dim)
+            BN_k = BN_flow(self.input_dim)
             self.add_module('flow_{}'.format(str(k)), flow_k)
             self.add_module('BN_{}'.format(str(k)), BN_k)
 
@@ -500,13 +453,11 @@ class DiscreteFlowModel(nn.Module):
             # Don't apply batch norm after final forward flow T_{K-1}
             if k < self.n_flows - 1:
                 BN_k = getattr(self, 'BN_{}'.format(str(k)))
-                x_k, log_det_jacobian_BN_k = BN_k.forward(x_k)
+                x_k, log_det_jacobian_BN_k = BN_k(x_k, logpx=torch.zeros_like(x_k).to(x_k))
                 log_det_jacobian += log_det_jacobian_BN_k
                 
             x_flow.append(x_k)
-            
             log_det_jacobian += log_det_jacobian_k
-
 
         # Final approximation of target sample
         x_K = x_flow[-1]
@@ -533,7 +484,7 @@ class DiscreteFlowModel(nn.Module):
             # Don't apply batch norm before transform T^{-1}_{K_1}
             if k < self.n_flows - 1:
                 BN_k = getattr(self, 'BN_{}'.format(str(k)))
-                x_k, log_det_jacobian_BN_k = BN_k.invert(x_k)
+                x_k, log_det_jacobian_BN_k = BN_k(x_k, logpx=torch.zeros_like(x_k).to(x_k), reverse=True)
                 log_det_jacobian_inv += log_det_jacobian_BN_k
 
             flow_k = getattr(self, 'flow_{}'.format(str(k)))
