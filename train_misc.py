@@ -193,7 +193,7 @@ def build_model_tabular(args, dims, regularization_fns=None):
     if args.batch_norm:
         bn_layers = [layers.MovingBatchNorm1d(dims, bn_lag=args.bn_lag) for _ in range(args.num_blocks)]
         bn_chain = [layers.MovingBatchNorm1d(dims, bn_lag=args.bn_lag)]
-        for i, a, b in enumerate(zip(chain, bn_layers)):
+        for i, (a, b) in enumerate(zip(chain, bn_layers)):
             bn_chain.append(a)
             if i < args.num_blocks-1:
                 # Don't batch norm final layer¡

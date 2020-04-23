@@ -23,7 +23,7 @@ class BatchNormFlow(nn.Module):
         self.register_buffer('running_var', torch.ones(input_dim))
         
 
-    def forward(self, x, reverse=False):
+    def forward(self, x, logpx=None, reverse=False):
         if reverse:
             return self._invert(x)
         else:
@@ -152,7 +152,9 @@ class MovingBatchNormNd(nn.Module):
         if logpy is None:
             return x
         else:
-            return x, logpy + self._logdetgrad(x, used_var).view(x.size(0), -1).sum(1, keepdim=True)
+            ldj = self._logdetgrad(x, used_var).view(x.size(0), -1).sum(1, keepdim=True)
+            # return x, logpy + self._logdetgrad(x, used_var).view(x.size(0), -1).sum(1, keepdim=True)
+            return x, logpy + ldj
 
     def _logdetgrad(self, x, used_var):
         logdetgrad = -0.5 * torch.log(used_var + self.eps)

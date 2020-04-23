@@ -795,7 +795,7 @@ def _load_custom_data(filename, evaluate=False, adversary=False, parquet=False,
         auxillary = list(set(auxillary))
 
     df_features = df.drop(auxillary, axis=1)
-    df_features = df_features[smooth_vars()]  # only smooth variables
+    df_features = df_features[smooth_vars()[:4]]  # only smooth variables
     logger.info('Data shape: {}'.format(df_features.shape))
     logger.info('Features: {}'.format(df_features.columns.tolist()))
 

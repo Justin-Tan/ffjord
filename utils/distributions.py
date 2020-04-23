@@ -421,8 +421,8 @@ class DiscreteFlowModel(nn.Module):
         self.hidden_dim = hidden_dim
         self.base_dist = base_dist
         
-        # BN_flow = normalization.BatchNormFlow
-        BN_flow = normalization.MovingBatchNorm1d
+        BN_flow = normalization.BatchNormFlow
+        # BN_flow = normalization.MovingBatchNorm1d
         parity = lambda n: True if n%2==0 else False
         
         # Aggregate parameters from each transformation in the flow
@@ -453,8 +453,8 @@ class DiscreteFlowModel(nn.Module):
             # Don't apply batch norm after final forward flow T_{K-1}
             if k < self.n_flows - 1:
                 BN_k = getattr(self, 'BN_{}'.format(str(k)))
-                x_k, log_det_jacobian_BN_k = BN_k(x_k, logpx=torch.zeros_like(x_k).to(x_k))
-                log_det_jacobian += log_det_jacobian_BN_k
+                x_k, log_det_jacobian_BN_k = BN_k(x_k, logpx=torch.zeros(batch_size, 1).to(x_k))
+                log_det_jacobian += torch.squeeze(log_det_jacobian_BN_k)
                 
             x_flow.append(x_k)
             log_det_jacobian += log_det_jacobian_k
@@ -484,8 +484,8 @@ class DiscreteFlowModel(nn.Module):
             # Don't apply batch norm before transform T^{-1}_{K_1}
             if k < self.n_flows - 1:
                 BN_k = getattr(self, 'BN_{}'.format(str(k)))
-                x_k, log_det_jacobian_BN_k = BN_k(x_k, logpx=torch.zeros_like(x_k).to(x_k), reverse=True)
-                log_det_jacobian_inv += log_det_jacobian_BN_k
+                x_k, log_det_jacobian_BN_k = BN_k(x_k, logpx=torch.zeros(batch_size, 1).to(x_k), reverse=True)
+                log_det_jacobian_inv += torch.squeeze(log_det_jacobian_BN_k)
 
             flow_k = getattr(self, 'flow_{}'.format(str(k)))
             x_k, log_det_jacobian_k = flow_k.invert(x_k)
