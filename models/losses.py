@@ -14,6 +14,7 @@ from torch import optim
 
 from models import network
 from utils import distributions
+from utils import latent_matching
 from utils.math import (log_density_gaussian, log_importance_weight_matrix, 
     matrix_log_density_gaussian)
 
@@ -49,7 +50,7 @@ def get_loss_function(loss_type, args, logger=None, **kwargs):
 class BaseLoss:
     
     def __init__(self, x_dist, prior, supervision=False, distribution="bernoulli", log_interval=100, annealing_steps=1e4,
-            supervision_lagrange_m=64, sensitive_latent_idx=None, flow_type='no_flow', **kwargs):
+            supervision_lagrange_m=64, sensitive_latent_idx=None, flow_type='no_flow', latent_matching_type='cross_entropy', **kwargs):
         self.prior = prior  # Prior over z, p(z)
         self.x_dist = x_dist  # Distribution input x, p(x|z), for non-image data
         self.distribution = distribution  # x_dist but for image data - involves certain heuristic modifications
@@ -59,6 +60,7 @@ class BaseLoss:
         self.supervision = supervision
         self.supervision_lagrange_m = supervision_lagrange_m
         self.flow = flow_type
+        self.latent_matching_fn = latent_matching.MATCHING_FUNCTIONS[latent_matching_type]
 
         try:
             sensitive_latent_idx.sort()
@@ -150,7 +152,8 @@ class BetaVAE_loss(BaseLoss):
         
         if self.supervision is True:
             assert generative_factors is not None, 'Must supply generative factors for supervision.'
-            supervised_term = _sensitive_generative_matching(latent_stats, generative_factors, self.sensitive_latent_idx, storage=storage)
+            supervised_term = self.latent_matching_fn(latent_stats, generative_factors, self.sensitive_latent_idx, 
+            latent_factors=latent_sample, storage=storage)
             loss += self.supervision_lagrange_m * supervised_term
 
         if storage is not None:
@@ -208,7 +211,8 @@ class AnnealedVAE_loss(BaseLoss):
 
         if self.supervision is True:
             assert generative_factors is not None, 'Must supply generative factors for supervision.'
-            supervised_term = _sensitive_generative_matching(latent_stats, generative_factors, self.sensitive_latent_idx, storage=storage)
+            supervised_term = self.latent_matching_fn(latent_stats, generative_factors, self.sensitive_latent_idx, 
+            latent_factors=latent_sample, storage=storage)
             loss += self.supervision_lagrange_m * supervised_term
 
         if 'discrete' in latent_dist.keys():
@@ -304,7 +308,9 @@ class FactorVAE_loss(BaseLoss):
 
         if self.supervision is True:
             assert generative_factors is not None, 'Must supply generative factors for supervision.'
-            supervised_term = _sensitive_generative_matching(latent_stats, gen_f_VAE, self.sensitive_latent_idx, storage=storage)
+            # supervised_term = self.latent_matching_fn(latent_stats, gen_f_VAE, self.sensitive_latent_idx, storage=storage)
+            supervised_term = self.latent_matching_fn(latent_stats, gen_f_VAE, self.sensitive_latent_idx, 
+            latent_factors=latent_sample, storage=storage)
             vae_loss += self.supervision_lagrange_m * supervised_term
 
         if storage is not None:
@@ -414,7 +420,8 @@ class betaTC_VAE_loss(BaseLoss):
 
         if self.supervision is True:
             assert generative_factors is not None, 'Must supply generative factors for supervision.'
-            supervised_term = _sensitive_generative_matching(latent_stats, generative_factors, self.sensitive_latent_idx, storage=storage)
+            supervised_term = self.latent_matching_fn(latent_stats, generative_factors, self.sensitive_latent_idx, 
+            latent_factors=latent_sample, storage=storage)
             loss += self.supervision_lagrange_m * supervised_term
 
         if storage is not None:
@@ -532,7 +539,8 @@ class betaTC_sensitive_VAE_loss(BaseLoss):
         
         if self.supervision is True:
             assert generative_factors is not None, 'Must supply generative factors for supervision.'
-            supervised_term = _sensitive_generative_matching(latent_stats, generative_factors, self.sensitive_latent_idx, storage=storage)
+            supervised_term = self.latent_matching_fn(latent_stats, generative_factors, self.sensitive_latent_idx, 
+                latent_factors=latent_sample, storage=storage)
             loss += self.supervision_lagrange_m * supervised_term
 
         if storage is not None:
@@ -756,55 +764,6 @@ def _permute_dims(latent_sample):
         perm[:, z] = latent_sample[pi, z]
 
     return perm
-
-
-def _sensitive_generative_matching(latent_stats, generative_factors, sensitive_latent_idx, 
-                                   storage=None):
-    """
-    Supervised loss to match latent factors z with known generative
-    factors v. 
-    Parameters
-    ----------
-    latent_factors: torch.Tensor
-        sample from the latent dimension using the reparameterisation trick
-        or mean of latent distribution. Shape (batch_size, latent_dim)
-    generative_factors: torch.Tensor
-        true known generative factors of data. Shape (batch_size, latent_dim)
-    sensitive_latent_idx: list
-        Indices of sensitive latents. Advised to use {0,1,...,d} for d
-        sensitive latents.
-    Returns
-    -------
-    Binary cross entropy loss between inputs (learned latents) z and targets 
-    (ground truth generative factors) v normalized to [0,1].
-
-    \sum_i^d v_i \log (\sigma z_i) + (1-v_i) \log (1 - \sigma z_i) 
-    """
-
-    mu = latent_stats[0].float()
-    latent_factors = mu
-    generative_factors = generative_factors.float()
-
-    rep = latent_factors
-    sigmoid_rep = torch.sigmoid(rep)
-
-    batch_size, latent_dim = latent_factors.shape
-
-    # For some reason this is returning divergent values and nondeterministic
-    # supervised_term = torch.stack([F.binary_cross_entropy_with_logits(input=latent_factors[:,idx], 
-    #     target=generative_factors[:,idx], reduction='sum') for idx in sensitive_latent_idx]).sum()
-
-    supervised_term = torch.stack([F.binary_cross_entropy(input=sigmoid_rep[:,idx], 
-        target=generative_factors[:,idx], reduction='sum') for idx in sensitive_latent_idx]).sum()
-
-    supervised_term = supervised_term / batch_size
-
-    if storage is not None:
-        storage['supervised_term'].append(supervised_term.item())
-
-    return supervised_term
-
-
     
 
 # Batch TC specific

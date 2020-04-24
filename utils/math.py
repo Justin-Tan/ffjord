@@ -3,6 +3,18 @@
 import torch
 import numpy as np
 
+def gaussian_entropy(D, logvar):
+    """
+    Entropy of a Gaussian distribution with 'D' dimensions and heteroscedastic log variance 'logvar'
+    Parameters
+    ----------
+    D:      integer
+            Dimension of Gaussian distribution
+    logvar: torch.Tensor 
+            logvar for each example in batch, [batch_size, D]
+    """
+    h = 0.5 * (D * (torch.log(2.0 * np.pi) + 1) + torch.sum(logvar, dim=1))
+
 def log_density_gaussian(x, mu, logvar):
     """
     Calculates log density of a Gaussian.

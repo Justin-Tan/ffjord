@@ -85,7 +85,8 @@ def train(args, model, train_loader, test_loader, device,
         
     loss_function = losses.get_loss_function(args.loss_type, args=args, logger=logger, log_interval=log_interval, device=device, flow_type=args.flow,
                                              distribution=args.distribution, prior=prior, x_dist=x_dist, supervision=args.supervision,
-                                             supervision_lagrange_m=args.supervision_lagrange_m, sensitive_latent_idx=args.sensitive_latent_idx)
+                                             supervision_lagrange_m=args.supervision_lagrange_m, sensitive_latent_idx=args.sensitive_latent_idx,
+                                             latent_matching_type=args.latent_matching_type)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, 
                                                            factor=0.5, verbose=True)
@@ -194,8 +195,10 @@ if __name__ == '__main__':
     general.add_argument('--smoke_test', action='store_true', help='Shut up and train! No extra metrics.')
     general.add_argument(
         '-f', '--flow', type=str, default='no_flow', choices=['cnf', 'cnf_amort', 'cnf_freeze_vae', 'discrete_flow', 'no_flow'], 
-        help="""Type of flow to use in decoder of VAE, no flow can also be selected."""
-    )
+        help="Type of flow to use in decoder of VAE, no flow can also be selected.")
+    general.add_argument(
+        '-lm', '--latent_matching_type', type=str, default='cross_entropy', choices=['cross_entropy', 'mutual_info'], 
+        help="Type of function to evaluate informativeness between latents and sensitive factors.")
 
     # Optimization-related options
     optim = parser.add_argument_group("Optimization-related options")
