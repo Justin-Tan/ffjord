@@ -189,7 +189,7 @@ def MI_matching(latent_stats, generative_factors, sensitive_latent_idx, latent_f
 
     pairwise_kl_distance = pairwise_kl(mu, logvar)
 
-    # Upper bound on 
+    # Upper bound on MI between input x and latent z
     I_XZ = -torch.mean(torch.logsumexp(-pairwise_kl_distance, dim=1)) + math.log(B)
 
 

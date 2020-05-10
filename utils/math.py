@@ -5,13 +5,17 @@ import numpy as np
 
 def gaussian_entropy(D, logvar):
     """
-    Entropy of a Gaussian distribution with 'D' dimensions and heteroscedastic log variance 'logvar'
+    Entropy of a Gaussian distribution with 'D' dimensions with diagonal
+    covariance
     Parameters
     ----------
     D:      integer
             Dimension of Gaussian distribution
     logvar: torch.Tensor 
-            logvar for each example in batch, [batch_size, D]
+            Logarithm of diagonal of covariance matrix
+            for each example in batch, [B, D]
+    Returns:
+    Entropy: [B]
     """
     h = 0.5 * (D * (torch.log(2.0 * np.pi) + 1) + torch.sum(logvar, dim=1))
 
